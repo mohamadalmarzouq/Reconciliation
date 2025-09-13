@@ -1,11 +1,17 @@
 import fs from 'fs'
-import pdf from 'pdf-parse'
 import csv from 'csv-parser'
 import * as XLSX from 'xlsx'
 import { Transaction } from '@/types'
 
 export async function parsePDF(filePath: string): Promise<Transaction[]> {
   try {
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+    
+    // Dynamically import pdf-parse to avoid build-time issues
+    const pdf = (await import('pdf-parse')).default
     const dataBuffer = fs.readFileSync(filePath)
     const data = await pdf(dataBuffer)
     
@@ -42,6 +48,12 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
 
 export async function parseCSV(filePath: string): Promise<Transaction[]> {
   return new Promise((resolve, reject) => {
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      reject(new Error(`File not found: ${filePath}`))
+      return
+    }
+    
     const transactions: Transaction[] = []
     let id = 1
     
@@ -76,6 +88,11 @@ export async function parseCSV(filePath: string): Promise<Transaction[]> {
 
 export async function parseXLSX(filePath: string): Promise<Transaction[]> {
   try {
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+    
     const workbook = XLSX.readFile(filePath)
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
