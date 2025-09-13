@@ -13,18 +13,18 @@
     "postinstall": "next telemetry disable"
   },
   "dependencies": {
-    "next": "14.0.4",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "typescript": "5.3.3",
-    "@types/node": "20.10.5",
-    "@types/react": "18.2.45",
-    "@types/react-dom": "18.2.18",
-    "tailwindcss": "3.3.6",
-    "autoprefixer": "10.4.16",
-    "postcss": "8.4.32",
-    "openai": "4.20.1",
-    "lucide-react": "0.294.0"
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.5.3",
+    "@types/node": "20.14.9",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "tailwindcss": "3.4.4",
+    "autoprefixer": "10.4.19",
+    "postcss": "8.4.39",
+    "openai": "4.52.7",
+    "lucide-react": "0.363.0"
   },
   "devDependencies": {
     "eslint": "8.56.0",
