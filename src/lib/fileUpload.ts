@@ -1,52 +1,54 @@
-import { Transaction } from '@/types'
+import formidable from 'formidable'
+import fs from 'fs'
+import path from 'path'
+import { promises as fsPromises } from 'fs'
 
-export async function uploadFile(file: File): Promise<{ success: boolean; transactions?: Transaction[] }> {
+const UPLOAD_DIR = '/app/uploads'
+
+// Ensure upload directory exists
+export async function ensureUploadDir() {
   try {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error('Upload failed')
-    }
-
-    const result = await response.json()
-    return { success: true, transactions: result.transactions }
-  } catch (error) {
-    console.error('Upload error:', error)
-    return { success: false }
+    await fsPromises.access(UPLOAD_DIR)
+  } catch {
+    await fsPromises.mkdir(UPLOAD_DIR, { recursive: true })
   }
 }
 
-export function parseFileContent(content: string, fileType: string): Transaction[] {
-  // This is a simplified parser - in a real app, you'd use proper libraries
-  const lines = content.split('\n')
-  const transactions: Transaction[] = []
+export async function saveUploadedFile(file: formidable.File): Promise<string> {
+  await ensureUploadDir()
+  
+  const timestamp = Date.now()
+  const filename = `${timestamp}-${file.originalFilename || 'upload'}`
+  const filepath = path.join(UPLOAD_DIR, filename)
+  
+  // Move file from temp location to persistent storage
+  await fsPromises.rename(file.filepath, filepath)
+  
+  return filepath
+}
 
-  if (fileType === 'text/csv') {
-    // Skip header row
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (!line) continue
+export function getFileExtension(filename: string): string {
+  return path.extname(filename).toLowerCase()
+}
 
-      const columns = line.split(',')
-      if (columns.length >= 4) {
-        transactions.push({
-          id: `txn-${i}`,
-          date: columns[0],
-          description: columns[1],
-          amount: parseFloat(columns[2]),
-          balance: parseFloat(columns[3]),
-          type: parseFloat(columns[2]) > 0 ? 'credit' : 'debit',
-          isMatched: false
-        })
-      }
-    }
+export function isSupportedFileType(filename: string): boolean {
+  const supportedExtensions = ['.pdf', '.csv', '.xlsx', '.xls']
+  const extension = getFileExtension(filename)
+  return supportedExtensions.includes(extension)
+}
+
+export function getFileType(filename: string): string {
+  const extension = getFileExtension(filename)
+  switch (extension) {
+    case '.pdf':
+      return 'application/pdf'
+    case '.csv':
+      return 'text/csv'
+    case '.xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    case '.xls':
+      return 'application/vnd.ms-excel'
+    default:
+      return 'application/octet-stream'
   }
-
-  return transactions
 }

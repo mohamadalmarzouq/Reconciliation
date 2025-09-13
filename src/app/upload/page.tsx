@@ -16,9 +16,23 @@ export default function UploadPage() {
     setUploadedFile(file)
 
     try {
-      // Simulate file processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      setUploadStatus('success')
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setUploadStatus('success')
+        // Store the bank statement ID for navigation
+        sessionStorage.setItem('currentBankStatementId', result.bankStatementId)
+      } else {
+        throw new Error(result.error || 'Upload failed')
+      }
     } catch (error) {
       console.error('Upload error:', error)
       setUploadStatus('error')

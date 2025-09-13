@@ -30,77 +30,34 @@ export default function ReviewPage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
 
   useEffect(() => {
-    // Mock data for demonstration
-    const mockTransactions: Transaction[] = [
-      {
-        id: '1',
-        date: '2025-09-01',
-        description: 'Zain POS 345',
-        amount: -12.00,
-        balance: 1250.50,
-        type: 'debit',
-        isMatched: true,
-        match: {
-          confidence: 0.95,
-          explanation: 'Matched with Invoice #248 due to amount and customer match',
-          suggestedAction: 'match',
-          accountingEntry: {
-            id: 'acc-248',
-            description: 'Invoice #248 - Zain Telecom',
-            amount: 12.00,
-            date: '2025-09-01',
-            account: 'Accounts Receivable'
-          }
+    const fetchTransactions = async () => {
+      try {
+        // Get bank statement ID from session storage (set during upload)
+        const bankStatementId = sessionStorage.getItem('currentBankStatementId')
+        
+        const url = bankStatementId 
+          ? `/api/transactions?bankStatementId=${bankStatementId}`
+          : '/api/transactions'
+          
+        const response = await fetch(url)
+        const result = await response.json()
+        
+        if (result.success) {
+          setTransactions(result.transactions)
+        } else {
+          console.error('Failed to fetch transactions:', result.error)
+          // Fallback to empty array if no data
+          setTransactions([])
         }
-      },
-      {
-        id: '2',
-        date: '2025-09-02',
-        description: 'Office Supplies Store',
-        amount: -45.30,
-        balance: 1205.20,
-        type: 'debit',
-        isMatched: false,
-        match: {
-          confidence: 0.65,
-          explanation: 'Possible match with Office Expenses, but amount differs by $5.30',
-          suggestedAction: 'flag',
-          accountingEntry: {
-            id: 'acc-249',
-            description: 'Office Supplies - Stationery',
-            amount: 50.60,
-            date: '2025-09-02',
-            account: 'Office Expenses'
-          }
-        }
-      },
-      {
-        id: '3',
-        date: '2025-09-03',
-        description: 'Client Payment - ABC Corp',
-        amount: 2500.00,
-        balance: 3705.20,
-        type: 'credit',
-        isMatched: true,
-        match: {
-          confidence: 0.98,
-          explanation: 'Perfect match with Invoice #250 payment',
-          suggestedAction: 'match',
-          accountingEntry: {
-            id: 'acc-250',
-            description: 'Payment from ABC Corp - Invoice #250',
-            amount: 2500.00,
-            date: '2025-09-03',
-            account: 'Accounts Receivable'
-          }
-        }
+      } catch (error) {
+        console.error('Error fetching transactions:', error)
+        setTransactions([])
+      } finally {
+        setLoading(false)
       }
-    ]
+    }
 
-    setTimeout(() => {
-      setTransactions(mockTransactions)
-      setLoading(false)
-    }, 1000)
+    fetchTransactions()
   }, [])
 
   const getStatusIcon = (transaction: Transaction) => {
