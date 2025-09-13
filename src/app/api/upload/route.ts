@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import formidable from 'formidable'
 import { saveUploadedFile, isSupportedFileType, getFileType } from '@/lib/fileUpload'
 import { parseFile } from '@/lib/fileParser'
 import { getDatabasePool } from '@/lib/database'
@@ -7,15 +6,8 @@ import { Transaction } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const form = formidable({
-      maxFileSize: 10 * 1024 * 1024, // 10MB limit
-      filter: ({ mimetype }) => {
-        return isSupportedFileType(mimetype || '')
-      }
-    })
-
-    const [fields, files] = await form.parse(await request.formData())
-    const file = Array.isArray(files.file) ? files.file[0] : files.file
+    const formData = await request.formData()
+    const file = formData.get('file') as File
 
     if (!file) {
       return NextResponse.json(
@@ -24,16 +16,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!isSupportedFileType(file.originalFilename || '')) {
+    if (!isSupportedFileType(file.name)) {
       return NextResponse.json(
         { error: 'Unsupported file type. Please upload PDF, CSV, or XLSX files.' },
         { status: 400 }
       )
     }
 
-    // Save file to persistent disk
-    const filePath = await saveUploadedFile(file)
-    const fileType = getFileType(file.originalFilename || '')
+    // Convert File to buffer for processing
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    
+    // Create a temporary file path
+    const timestamp = Date.now()
+    const filename = `${timestamp}-${file.name}`
+    const filePath = `/app/uploads/${filename}`
+    
+    // Ensure upload directory exists and save file
+    const fs = require('fs')
+    const path = require('path')
+    
+    // Create uploads directory if it doesn't exist
+    const uploadDir = '/app/uploads'
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+    
+    // Write file to disk
+    fs.writeFileSync(filePath, buffer)
+    
+    const fileType = getFileType(file.name)
     
     // Parse file to extract transactions
     const transactions = await parseFile(filePath, fileType)
@@ -47,7 +59,7 @@ export async function POST(request: NextRequest) {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id
     `, [
-      file.originalFilename,
+      file.name,
       fileType,
       filePath,
       transactions.length,
@@ -74,7 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       bankStatementId,
-      filename: file.originalFilename,
+      filename: file.name,
       fileType,
       totalTransactions: transactions.length,
       transactions: transactions.slice(0, 10), // Return first 10 for preview

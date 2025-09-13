@@ -1,4 +1,3 @@
-import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
 import { promises as fsPromises } from 'fs'
@@ -14,15 +13,15 @@ export async function ensureUploadDir() {
   }
 }
 
-export async function saveUploadedFile(file: formidable.File): Promise<string> {
+export async function saveUploadedFile(buffer: Buffer, filename: string): Promise<string> {
   await ensureUploadDir()
   
   const timestamp = Date.now()
-  const filename = `${timestamp}-${file.originalFilename || 'upload'}`
-  const filepath = path.join(UPLOAD_DIR, filename)
+  const newFilename = `${timestamp}-${filename}`
+  const filepath = path.join(UPLOAD_DIR, newFilename)
   
-  // Move file from temp location to persistent storage
-  await fsPromises.rename(file.filepath, filepath)
+  // Write file to persistent storage
+  await fsPromises.writeFile(filepath, buffer)
   
   return filepath
 }
