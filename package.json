@@ -24,15 +24,7 @@
     "autoprefixer": "10.4.16",
     "postcss": "8.4.32",
     "openai": "4.20.1",
-    "pdf-parse": "1.1.1",
-    "csv-parser": "3.0.0",
-    "xlsx": "0.18.5",
-    "formidable": "3.5.1",
-    "jspdf": "2.5.1",
-    "html2canvas": "1.4.1",
-    "lucide-react": "0.294.0",
-    "clsx": "2.0.0",
-    "class-variance-authority": "0.7.0"
+    "lucide-react": "0.294.0"
   },
   "devDependencies": {
     "eslint": "8.56.0",
