@@ -28,8 +28,7 @@
     "@types/pg": "^8.10.9",
     "csv-parser": "^3.0.0",
     "xlsx": "^0.18.5",
-    "pdfjs-dist": "^4.0.379",
-    "canvas": "^2.11.2"
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "eslint": "8.56.0",

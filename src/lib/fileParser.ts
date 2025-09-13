@@ -10,69 +10,49 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       throw new Error(`File not found: ${filePath}`)
     }
     
-    // Use pdfjs-dist for reliable PDF parsing
-    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
+    // Use pdf-parse with a workaround for the test file issue
+    const pdfParse = await import('pdf-parse')
     
     // Read the PDF file
     const dataBuffer = fs.readFileSync(filePath)
-    const uint8Array = new Uint8Array(dataBuffer)
     
-    // Load the PDF document
-    const loadingTask = pdfjsLib.getDocument({
-      data: uint8Array,
-      useSystemFonts: true,
-      disableFontFace: true,
-      disableRange: true,
-      disableStream: true
-    })
+    // Parse the PDF
+    const data = await pdfParse.default(dataBuffer)
     
-    const pdf = await loadingTask.promise
+    // Extract text and parse transactions
+    const lines = data.text.split('\n').filter(line => line.trim())
     const transactions: Transaction[] = []
     let id = 1
     
-    // Extract text from all pages
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum)
-      const textContent = await page.getTextContent()
-      
-      // Combine all text items
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ')
-      
-      // Parse transactions from the text
-      const lines = pageText.split('\n').filter(line => line.trim())
-      
-      for (const line of lines) {
-        // Look for transaction patterns - this is a simplified parser
-        // You might need to customize this based on your bank's PDF format
-        const amountMatch = line.match(/([+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/)
-        if (amountMatch) {
-          const amountStr = amountMatch[1].replace(/[$,]/g, '')
-          const amount = parseFloat(amountStr)
+    for (const line of lines) {
+      // Look for transaction patterns - this is a simplified parser
+      // You might need to customize this based on your bank's PDF format
+      const amountMatch = line.match(/([+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/)
+      if (amountMatch) {
+        const amountStr = amountMatch[1].replace(/[$,]/g, '')
+        const amount = parseFloat(amountStr)
+        
+        if (Math.abs(amount) > 0.01) { // Filter out very small amounts
+          // Try to extract date (common formats)
+          const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/)
+          const date = dateMatch ? dateMatch[0] : new Date().toISOString().split('T')[0]
           
-          if (Math.abs(amount) > 0.01) { // Filter out very small amounts
-            // Try to extract date (common formats)
-            const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/)
-            const date = dateMatch ? dateMatch[0] : new Date().toISOString().split('T')[0]
-            
-            // Clean up description
-            const description = line
-              .replace(amountMatch[0], '')
-              .replace(dateMatch ? dateMatch[0] : '', '')
-              .trim()
-              .replace(/\s+/g, ' ')
-            
-            if (description.length > 0) {
-              transactions.push({
-                id: `pdf-${id++}`,
-                date: date,
-                description: description,
-                amount: amount,
-                type: amount > 0 ? 'credit' : 'debit',
-                isMatched: false
-              })
-            }
+          // Clean up description
+          const description = line
+            .replace(amountMatch[0], '')
+            .replace(dateMatch ? dateMatch[0] : '', '')
+            .trim()
+            .replace(/\s+/g, ' ')
+          
+          if (description.length > 0) {
+            transactions.push({
+              id: `pdf-${id++}`,
+              date: date,
+              description: description,
+              amount: amount,
+              type: amount > 0 ? 'credit' : 'debit',
+              isMatched: false
+            })
           }
         }
       }
