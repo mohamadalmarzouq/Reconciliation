@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       summary: {
         totalProcessed: bankTransactions.length,
         matchesFound: matches.length,
-        confidenceScore: matches.reduce((acc, match) => acc + match.confidence, 0) / matches.length || 0
+        confidenceScore: matches.reduce((acc: number, match) => acc + match.confidence, 0) / matches.length || 0
       }
     }
 
