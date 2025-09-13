@@ -4,9 +4,85 @@ import * as XLSX from 'xlsx'
 import { Transaction } from '@/types'
 
 export async function parsePDF(filePath: string): Promise<Transaction[]> {
-  // Temporarily disable PDF parsing due to library issues
-  // TODO: Implement proper PDF parsing with a more reliable library
-  throw new Error('PDF parsing is temporarily disabled. Please use CSV or XLSX format for now.')
+  try {
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`)
+    }
+    
+    // Use pdfjs-dist for reliable PDF parsing
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js')
+    
+    // Read the PDF file
+    const dataBuffer = fs.readFileSync(filePath)
+    const uint8Array = new Uint8Array(dataBuffer)
+    
+    // Load the PDF document
+    const loadingTask = pdfjsLib.getDocument({
+      data: uint8Array,
+      useSystemFonts: true,
+      disableFontFace: true,
+      disableRange: true,
+      disableStream: true
+    })
+    
+    const pdf = await loadingTask.promise
+    const transactions: Transaction[] = []
+    let id = 1
+    
+    // Extract text from all pages
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum)
+      const textContent = await page.getTextContent()
+      
+      // Combine all text items
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ')
+      
+      // Parse transactions from the text
+      const lines = pageText.split('\n').filter(line => line.trim())
+      
+      for (const line of lines) {
+        // Look for transaction patterns - this is a simplified parser
+        // You might need to customize this based on your bank's PDF format
+        const amountMatch = line.match(/([+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/)
+        if (amountMatch) {
+          const amountStr = amountMatch[1].replace(/[$,]/g, '')
+          const amount = parseFloat(amountStr)
+          
+          if (Math.abs(amount) > 0.01) { // Filter out very small amounts
+            // Try to extract date (common formats)
+            const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/)
+            const date = dateMatch ? dateMatch[0] : new Date().toISOString().split('T')[0]
+            
+            // Clean up description
+            const description = line
+              .replace(amountMatch[0], '')
+              .replace(dateMatch ? dateMatch[0] : '', '')
+              .trim()
+              .replace(/\s+/g, ' ')
+            
+            if (description.length > 0) {
+              transactions.push({
+                id: `pdf-${id++}`,
+                date: date,
+                description: description,
+                amount: amount,
+                type: amount > 0 ? 'credit' : 'debit',
+                isMatched: false
+              })
+            }
+          }
+        }
+      }
+    }
+    
+    return transactions
+  } catch (error) {
+    console.error('Error parsing PDF:', error)
+    throw new Error('Failed to parse PDF file. Please ensure it\'s a valid PDF bank statement.')
+  }
 }
 
 export async function parseCSV(filePath: string): Promise<Transaction[]> {
