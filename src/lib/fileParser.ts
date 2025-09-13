@@ -4,46 +4,9 @@ import * as XLSX from 'xlsx'
 import { Transaction } from '@/types'
 
 export async function parsePDF(filePath: string): Promise<Transaction[]> {
-  try {
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`File not found: ${filePath}`)
-    }
-    
-    // Dynamically import pdf-parse to avoid build-time issues
-    const pdf = (await import('pdf-parse')).default
-    const dataBuffer = fs.readFileSync(filePath)
-    const data = await pdf(dataBuffer)
-    
-    // Simple PDF parsing - in production, you'd want more sophisticated parsing
-    const lines = data.text.split('\n').filter(line => line.trim())
-    const transactions: Transaction[] = []
-    
-    let id = 1
-    for (const line of lines) {
-      // Look for lines that might contain transaction data
-      // This is a simplified parser - you'd want to customize based on your bank's format
-      const amountMatch = line.match(/([+-]?\$?\d+\.?\d*)/)
-      if (amountMatch) {
-        const amount = parseFloat(amountMatch[1].replace('$', ''))
-        if (Math.abs(amount) > 0.01) { // Filter out very small amounts
-          transactions.push({
-            id: `pdf-${id++}`,
-            date: new Date().toISOString().split('T')[0], // Default to today
-            description: line.replace(amountMatch[0], '').trim(),
-            amount: amount,
-            type: amount > 0 ? 'credit' : 'debit',
-            isMatched: false
-          })
-        }
-      }
-    }
-    
-    return transactions
-  } catch (error) {
-    console.error('Error parsing PDF:', error)
-    throw new Error('Failed to parse PDF file')
-  }
+  // Temporarily disable PDF parsing due to library issues
+  // TODO: Implement proper PDF parsing with a more reliable library
+  throw new Error('PDF parsing is temporarily disabled. Please use CSV or XLSX format for now.')
 }
 
 export async function parseCSV(filePath: string): Promise<Transaction[]> {

@@ -56,12 +56,12 @@ export default function UploadPage() {
               Upload your bank statement
             </h3>
             <p className="text-gray-500 mb-4">
-              Supports PDF, CSV, and XLSX files up to 10MB
+              Supports CSV and XLSX files up to 10MB (PDF support coming soon!)
             </p>
             <input
               type="file"
               onChange={handleFileChange}
-              accept=".pdf,.csv,.xlsx"
+              accept=".csv,.xlsx"
               className="hidden"
               id="file-upload"
             />
