@@ -1,8 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, AlertTriangle, Eye, Download } from 'lucide-react'
-import { Transaction, ReconciliationMatch } from '@/types'
+
+interface Transaction {
+  id: string
+  date: string
+  description: string
+  amount: number
+  balance?: number
+  type: 'debit' | 'credit'
+  isMatched: boolean
+  match?: {
+    confidence: number
+    explanation: string
+    suggestedAction: string
+    accountingEntry?: {
+      id: string
+      description: string
+      amount: number
+      date: string
+      account: string
+    }
+  }
+}
 
 export default function ReviewPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -85,35 +105,35 @@ export default function ReviewPage() {
 
   const getStatusIcon = (transaction: Transaction) => {
     if (transaction.isMatched) {
-      return <CheckCircle className="w-5 h-5 text-success-600" />
+      return <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-sm">✓</div>
     } else if (transaction.match?.suggestedAction === 'flag') {
-      return <AlertTriangle className="w-5 h-5 text-warning-600" />
+      return <div className="w-5 h-5 bg-yellow-600 text-white rounded-full flex items-center justify-center text-sm">!</div>
     } else {
-      return <XCircle className="w-5 h-5 text-danger-600" />
+      return <div className="w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-sm">✗</div>
     }
   }
 
   const getStatusColor = (transaction: Transaction) => {
     if (transaction.isMatched) {
-      return 'bg-success-50 border-success-200'
+      return 'bg-green-50 border-green-200'
     } else if (transaction.match?.suggestedAction === 'flag') {
-      return 'bg-warning-50 border-warning-200'
+      return 'bg-yellow-50 border-yellow-200'
     } else {
-      return 'bg-danger-50 border-danger-200'
+      return 'bg-red-50 border-red-200'
     }
   }
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-success-600'
-    if (confidence >= 0.6) return 'text-warning-600'
-    return 'text-danger-600'
+    if (confidence >= 0.8) return 'text-green-600'
+    if (confidence >= 0.6) return 'text-yellow-600'
+    return 'text-red-600'
   }
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       </div>
     )
@@ -125,36 +145,35 @@ export default function ReviewPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Reconciliation Review</h1>
           <div className="flex gap-4">
-            <button className="btn btn-secondary">
-              <Download className="w-4 h-4 mr-2" />
-              Export Report
+            <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">
+              📊 Export Report
             </button>
-            <button className="btn btn-primary">
-              Run AI Matching
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
+              🧠 Run AI Matching
             </button>
           </div>
         </div>
 
         {/* Summary Cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <div className="card text-center">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-gray-900">{transactions.length}</h3>
             <p className="text-gray-600">Total Transactions</p>
           </div>
-          <div className="card text-center">
-            <h3 className="text-2xl font-bold text-success-600">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
+            <h3 className="text-2xl font-bold text-green-600">
               {transactions.filter(t => t.isMatched).length}
             </h3>
             <p className="text-gray-600">Matched</p>
           </div>
-          <div className="card text-center">
-            <h3 className="text-2xl font-bold text-warning-600">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
+            <h3 className="text-2xl font-bold text-yellow-600">
               {transactions.filter(t => !t.isMatched && t.match?.suggestedAction === 'flag').length}
             </h3>
             <p className="text-gray-600">Flagged</p>
           </div>
-          <div className="card text-center">
-            <h3 className="text-2xl font-bold text-danger-600">
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
+            <h3 className="text-2xl font-bold text-red-600">
               {transactions.filter(t => !t.isMatched && t.match?.suggestedAction !== 'flag').length}
             </h3>
             <p className="text-gray-600">Unmatched</p>
@@ -162,7 +181,7 @@ export default function ReviewPage() {
         </div>
 
         {/* Transactions Table */}
-        <div className="card">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -184,7 +203,7 @@ export default function ReviewPage() {
                     <td className="py-3 px-4 text-gray-900">{transaction.date}</td>
                     <td className="py-3 px-4 text-gray-900">{transaction.description}</td>
                     <td className={`py-3 px-4 text-right font-medium ${
-                      transaction.amount > 0 ? 'text-success-600' : 'text-danger-600'
+                      transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
                     </td>
@@ -207,10 +226,9 @@ export default function ReviewPage() {
                     <td className="py-3 px-4">
                       <button
                         onClick={() => setSelectedTransaction(transaction)}
-                        className="btn btn-secondary text-sm"
+                        className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors"
                       >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Review
+                        👁️ Review
                       </button>
                     </td>
                   </tr>
@@ -231,7 +249,7 @@ export default function ReviewPage() {
                     onClick={() => setSelectedTransaction(null)}
                     className="text-gray-400 hover:text-gray-600"
                   >
-                    <XCircle className="w-6 h-6" />
+                    ✗
                   </button>
                 </div>
 
@@ -244,7 +262,7 @@ export default function ReviewPage() {
                     <div>
                       <label className="text-sm font-medium text-gray-700">Amount</label>
                       <p className={`font-medium ${
-                        selectedTransaction.amount > 0 ? 'text-success-600' : 'text-danger-600'
+                        selectedTransaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {selectedTransaction.amount > 0 ? '+' : ''}${Math.abs(selectedTransaction.amount).toFixed(2)}
                       </p>
@@ -280,9 +298,9 @@ export default function ReviewPage() {
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                  <button className="btn btn-primary">Accept Match</button>
-                  <button className="btn btn-secondary">Reject Match</button>
-                  <button className="btn btn-warning">Flag for Review</button>
+                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">Accept Match</button>
+                  <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">Reject Match</button>
+                  <button className="bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors">Flag for Review</button>
                 </div>
               </div>
             </div>
