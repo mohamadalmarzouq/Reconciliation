@@ -44,7 +44,17 @@ export async function getXeroToken(): Promise<XeroToken | null> {
       LIMIT 1
     `)
     
-    return result.rows[0] || null
+    const token = result.rows[0] || null
+    if (token) {
+      console.log('Retrieved token from database:', {
+        id: token.id,
+        has_access_token: !!token.access_token,
+        has_tenant_id: !!token.tenant_id,
+        tenant_id: token.tenant_id
+      })
+    }
+    
+    return token
   } catch (error) {
     console.error('Error getting Xero token:', error)
     return null
