@@ -62,6 +62,16 @@ export default function ReviewPage() {
       }
     }
 
+    // Check for Xero connection success
+    const urlParams = new URLSearchParams(window.location.search)
+    const success = urlParams.get('success')
+    if (success === 'xero_connected') {
+      alert('✅ Xero connected successfully! You can now fetch your Xero data.')
+      setXeroConnected(true)
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
     fetchTransactions()
   }, [])
 

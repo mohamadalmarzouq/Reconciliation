@@ -38,25 +38,30 @@ export async function GET(request: NextRequest) {
     
     const tokenData = await tokenResponse.json()
     
+    // Get tenant ID from the token response
+    const tenantId = tokenData.tenant_id || 'default'
+    
     // Store the token in database (you might want to associate this with a user)
     const pool = getDatabasePool()
     await pool.query(`
-      INSERT INTO xero_tokens (access_token, refresh_token, expires_at, created_at)
-      VALUES ($1, $2, $3, NOW())
+      INSERT INTO xero_tokens (access_token, refresh_token, expires_at, tenant_id, created_at)
+      VALUES ($1, $2, $3, $4, NOW())
       ON CONFLICT (id) DO UPDATE SET
         access_token = EXCLUDED.access_token,
         refresh_token = EXCLUDED.refresh_token,
         expires_at = EXCLUDED.expires_at,
+        tenant_id = EXCLUDED.tenant_id,
         updated_at = NOW()
     `, [
       tokenData.access_token,
       tokenData.refresh_token,
-      new Date(Date.now() + tokenData.expires_in * 1000)
+      new Date(Date.now() + tokenData.expires_in * 1000),
+      tenantId
     ])
     
     console.log('Xero OAuth successful, token stored')
     
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL || 'https://reconciliation-rq43.onrender.com'}/upload?success=xero_connected`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_URL || 'https://reconciliation-rq43.onrender.com'}/review?success=xero_connected`)
     
   } catch (error) {
     console.error('Xero callback error:', error)
