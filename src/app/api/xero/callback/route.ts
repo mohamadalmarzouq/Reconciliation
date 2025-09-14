@@ -45,8 +45,19 @@ export async function GET(request: NextRequest) {
     let tenantId = 'default'
     try {
       const payload = JSON.parse(Buffer.from(tokenData.access_token.split('.')[1], 'base64').toString())
-      tenantId = payload.xero_tenantid || payload.tenant_id || 'default'
+      console.log('JWT payload:', JSON.stringify(payload, null, 2))
+      
+      // Try different possible field names for tenant ID
+      tenantId = payload.xero_tenantid || 
+                 payload.tenant_id || 
+                 payload.xero_tenant_id || 
+                 payload.tenantid || 
+                 payload.tenantId ||
+                 payload.aud ||
+                 'default'
+      
       console.log('Extracted tenant ID from JWT:', tenantId)
+      console.log('Available payload keys:', Object.keys(payload))
     } catch (jwtError) {
       console.error('Error decoding JWT for tenant ID:', jwtError)
     }

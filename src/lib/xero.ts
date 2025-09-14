@@ -109,6 +109,55 @@ export async function refreshXeroToken(refreshToken: string): Promise<XeroToken 
   }
 }
 
+export async function getXeroTenantId(): Promise<string> {
+  try {
+    const token = await getXeroToken()
+    if (!token) {
+      throw new Error('No valid Xero token found')
+    }
+    
+    // If we already have a tenant ID, use it
+    if (token.tenant_id && token.tenant_id !== 'default') {
+      return token.tenant_id
+    }
+    
+    // Otherwise, get it from Xero API
+    const response = await fetch('https://api.xero.com/connections', {
+      headers: {
+        'Authorization': `Bearer ${token.access_token}`,
+        'Accept': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get connections: ${response.status}`)
+    }
+    
+    const connections = await response.json()
+    console.log('Xero connections response:', JSON.stringify(connections, null, 2))
+    
+    if (connections.length > 0) {
+      const tenantId = connections[0].tenantId
+      console.log('Found tenant ID from connections:', tenantId)
+      
+      // Update the database with the correct tenant ID
+      const pool = getDatabasePool()
+      await pool.query(`
+        UPDATE xero_tokens 
+        SET tenant_id = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [tenantId, token.id])
+      
+      return tenantId
+    }
+    
+    return 'default'
+  } catch (error) {
+    console.error('Error getting Xero tenant ID:', error)
+    return 'default'
+  }
+}
+
 export async function getXeroContacts(): Promise<XeroContact[]> {
   try {
     const token = await getXeroToken()
@@ -116,7 +165,7 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
       throw new Error('No valid Xero token found')
     }
     
-    const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
+    const tenantId = await getXeroTenantId()
     console.log('Using tenant ID for contacts:', tenantId)
     console.log('Making API call to:', 'https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false')
     console.log('Request headers:', {
@@ -178,7 +227,7 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
       throw new Error('No valid Xero token found')
     }
     
-    const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
+    const tenantId = await getXeroTenantId()
     console.log('Using tenant ID for invoices:', tenantId)
     
     const response = await fetch('https://api.xero.com/api.xro/2.0/Invoices?statuses=AUTHORISED&includeArchived=false', {
