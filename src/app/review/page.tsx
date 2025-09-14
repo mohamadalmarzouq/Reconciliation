@@ -29,6 +29,10 @@ export default function ReviewPage() {
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [isMatching, setIsMatching] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [isReconciling, setIsReconciling] = useState(false)
+  const [xeroConnected, setXeroConnected] = useState(false)
+  const [xeroData, setXeroData] = useState<any>(null)
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -121,6 +125,82 @@ export default function ReviewPage() {
     }
   }
 
+  const connectToXero = async () => {
+    setIsConnecting(true)
+    try {
+      const response = await fetch('/api/xero/connect')
+      const result = await response.json()
+      
+      if (result.authUrl) {
+        // Redirect to Xero OAuth
+        window.location.href = result.authUrl
+      } else {
+        alert('Failed to get Xero connection URL')
+      }
+    } catch (error) {
+      console.error('Error connecting to Xero:', error)
+      alert('Error connecting to Xero. Please try again.')
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const fetchXeroData = async () => {
+    try {
+      const [contactsResponse, invoicesResponse] = await Promise.all([
+        fetch('/api/xero/contacts'),
+        fetch('/api/xero/invoices')
+      ])
+      
+      const contacts = await contactsResponse.json()
+      const invoices = await invoicesResponse.json()
+      
+      setXeroData({ contacts: contacts.contacts || [], invoices: invoices.invoices || [] })
+      setXeroConnected(true)
+      
+      alert(`Connected to Xero! Found ${contacts.contacts?.length || 0} contacts and ${invoices.invoices?.length || 0} invoices.`)
+    } catch (error) {
+      console.error('Error fetching Xero data:', error)
+      alert('Error fetching Xero data. Please try again.')
+    }
+  }
+
+  const runReconciliation = async () => {
+    if (!xeroData) {
+      alert('Please connect to Xero first!')
+      return
+    }
+    
+    setIsReconciling(true)
+    try {
+      const response = await fetch('/api/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transactions: transactions,
+          xeroData: xeroData
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setTransactions(result.transactions)
+        alert(`Reconciliation completed! Matched ${result.matchesFound} transactions.`)
+      } else {
+        console.error('Reconciliation failed:', result.error)
+        alert('Reconciliation failed. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error running reconciliation:', error)
+      alert('Error running reconciliation. Please try again.')
+    } finally {
+      setIsReconciling(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -136,7 +216,7 @@ export default function ReviewPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Reconciliation Review</h1>
-          <div className="flex gap-4">
+          <div className="flex gap-2 flex-wrap">
             <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">
               📊 Export Report
             </button>
@@ -149,8 +229,41 @@ export default function ReviewPage() {
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
             >
-              {isMatching ? '🔄 Processing...' : '🧠 Run AI Matching'}
+              {isMatching ? '🔄 Processing...' : '🧠 AI Analysis'}
             </button>
+            {!xeroConnected ? (
+              <button 
+                onClick={connectToXero}
+                disabled={isConnecting}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isConnecting 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {isConnecting ? '🔄 Connecting...' : '🔗 Connect Xero'}
+              </button>
+            ) : (
+              <button 
+                onClick={fetchXeroData}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+              >
+                📊 Fetch Xero Data
+              </button>
+            )}
+            {xeroConnected && (
+              <button 
+                onClick={runReconciliation}
+                disabled={isReconciling}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isReconciling 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                }`}
+              >
+                {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
+              </button>
+            )}
           </div>
         </div>
 

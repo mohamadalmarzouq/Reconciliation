@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { bankStatementId, transactions } = await request.json()
+    const { bankStatementId, transactions, xeroData } = await request.json()
 
     if (!transactions || !Array.isArray(transactions)) {
       return NextResponse.json(
@@ -17,33 +17,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For now, we'll do basic AI analysis without accounting entries
-    // In a full implementation, you'd fetch accounting entries from Xero/QuickBooks
-    const prompt = createBasicReconciliationPrompt(transactions)
+    let prompt: string
+    let updatedTransactions: any[]
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert financial reconciliation AI. Analyze bank transactions and provide insights about their nature, potential matches, and reconciliation suggestions. Focus on transaction patterns, amounts, and descriptions.`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 2000,
-    })
+    if (xeroData && xeroData.contacts && xeroData.invoices) {
+      // Full reconciliation with Xero data
+      prompt = createXeroReconciliationPrompt(transactions, xeroData.contacts, xeroData.invoices)
+      
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert financial reconciliation AI. Match bank transactions with Xero invoices and contacts. Provide confidence scores and clear explanations for each match.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 3000,
+      })
 
-    const response = completion.choices[0]?.message?.content
-    if (!response) {
-      throw new Error('No response from OpenAI')
+      const response = completion.choices[0]?.message?.content
+      if (!response) {
+        throw new Error('No response from OpenAI')
+      }
+
+      updatedTransactions = parseXeroReconciliationResponse(response, transactions, xeroData)
+    } else {
+      // Basic AI analysis without accounting entries
+      prompt = createBasicReconciliationPrompt(transactions)
+      
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert financial reconciliation AI. Analyze bank transactions and provide insights about their nature, potential matches, and reconciliation suggestions. Focus on transaction patterns, amounts, and descriptions.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000,
+      })
+
+      const response = completion.choices[0]?.message?.content
+      if (!response) {
+        throw new Error('No response from OpenAI')
+      }
+
+      updatedTransactions = parseAIResponse(response, transactions)
     }
-
-    // Parse the response and update transactions
-    const updatedTransactions = parseAIResponse(response, transactions)
 
     return NextResponse.json({
       success: true,
@@ -85,6 +114,106 @@ Return the response as a JSON array of objects with this structure:
   }
 ]
 `
+}
+
+function createXeroReconciliationPrompt(transactions: Transaction[], contacts: any[], invoices: any[]): string {
+  return `
+Match these bank transactions with Xero invoices and contacts:
+
+BANK TRANSACTIONS:
+${transactions.map(t => 
+  `- ID: ${t.id}, Date: ${t.date}, Description: "${t.description}", Amount: ${t.amount}, Type: ${t.type}`
+).join('\n')}
+
+XERO CONTACTS:
+${contacts.map(c => 
+  `- ID: ${c.ContactID}, Name: "${c.Name}", Email: ${c.EmailAddress || 'N/A'}`
+).join('\n')}
+
+XERO INVOICES:
+${invoices.map(i => 
+  `- ID: ${i.InvoiceID}, Number: ${i.InvoiceNumber}, Date: ${i.Date}, Total: ${i.Total}, AmountPaid: ${i.AmountPaid}, Contact: "${i.Contact?.Name || 'N/A'}"`
+).join('\n')}
+
+For each bank transaction, find the best matching Xero invoice or contact and provide:
+1. Confidence score (0-1) for the match quality
+2. Explanation of why it matches or doesn't match
+3. Suggested action: "match", "flag", "split", or "defer"
+4. The matched Xero invoice ID or contact ID (if any)
+
+Return the response as a JSON array of objects with this structure:
+[
+  {
+    "transactionId": "string",
+    "confidence": number,
+    "explanation": "string",
+    "suggestedAction": "string",
+    "matchedInvoiceId": "string" (optional),
+    "matchedContactId": "string" (optional)
+  }
+]
+`
+}
+
+function parseXeroReconciliationResponse(response: string, transactions: Transaction[], xeroData: any) {
+  try {
+    const jsonMatch = response.match(/\[[\s\S]*\]/)
+    if (jsonMatch) {
+      const aiResults = JSON.parse(jsonMatch[0])
+      
+      return transactions.map(transaction => {
+        const aiResult = aiResults.find((r: any) => r.transactionId === transaction.id)
+        
+        if (aiResult) {
+          const matchedInvoice = aiResult.matchedInvoiceId ? 
+            xeroData.invoices.find((i: any) => i.InvoiceID === aiResult.matchedInvoiceId) : null
+          const matchedContact = aiResult.matchedContactId ? 
+            xeroData.contacts.find((c: any) => c.ContactID === aiResult.matchedContactId) : null
+          
+          return {
+            ...transaction,
+            isMatched: aiResult.suggestedAction === 'match' && aiResult.confidence > 0.7,
+            match: {
+              confidence: aiResult.confidence || 0.5,
+              explanation: aiResult.explanation || 'Xero reconciliation completed',
+              suggestedAction: aiResult.suggestedAction || 'flag',
+              accountingEntry: matchedInvoice ? {
+                id: matchedInvoice.InvoiceID,
+                description: matchedInvoice.InvoiceNumber,
+                amount: matchedInvoice.Total,
+                date: matchedInvoice.Date,
+                account: 'Accounts Receivable'
+              } : undefined
+            }
+          }
+        }
+        
+        return transaction
+      })
+    }
+    
+    // Fallback
+    return transactions.map(transaction => ({
+      ...transaction,
+      match: {
+        confidence: 0.3,
+        explanation: 'Xero reconciliation failed to parse response',
+        suggestedAction: 'defer' as const,
+        accountingEntry: undefined
+      }
+    }))
+  } catch (error) {
+    console.error('Error parsing Xero reconciliation response:', error)
+    return transactions.map(transaction => ({
+      ...transaction,
+      match: {
+        confidence: 0.3,
+        explanation: 'Unable to process Xero reconciliation response',
+        suggestedAction: 'defer' as const,
+        accountingEntry: undefined
+      }
+    }))
+  }
 }
 
 function parseAIResponse(response: string, transactions: Transaction[]) {
