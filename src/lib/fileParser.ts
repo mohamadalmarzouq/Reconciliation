@@ -10,29 +10,29 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       throw new Error(`File not found: ${filePath}`)
     }
     
-    // Use AWS Textract for professional PDF parsing
-    const AWS = require('aws-sdk')
+    // Use AWS Textract v3 for professional PDF parsing
+    const { TextractClient, DetectDocumentTextCommand } = await import('@aws-sdk/client-textract')
     
-    // Configure AWS
-    AWS.config.update({
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_REGION || 'us-east-1'
+    // Configure AWS Textract client
+    const textractClient = new TextractClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      }
     })
-    
-    const textract = new AWS.Textract()
     
     // Read the PDF file
     const pdfBuffer = fs.readFileSync(filePath)
     
     // Use Textract to extract text from PDF
-    const params = {
+    const command = new DetectDocumentTextCommand({
       Document: {
         Bytes: pdfBuffer
       }
-    }
+    })
     
-    const result = await textract.detectDocumentText(params).promise()
+    const result = await textractClient.send(command)
     
     // Parse the extracted text for transactions
     const transactions: Transaction[] = []
@@ -46,6 +46,9 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       }
     }
     
+    // Debug: Log the extracted text to understand the format
+    console.log('Extracted text from PDF:', allText.substring(0, 1000))
+    
     // Parse lines for transaction patterns - enhanced for bank statement tables
     const lines = allText.split('\n').filter(line => line.trim())
     
@@ -53,8 +56,8 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       
-      // Look for date pattern at start of line (YYYY/MM/DD format)
-      const dateMatch = line.match(/^(\d{4}\/\d{1,2}\/\d{1,2})/)
+      // Look for date pattern (YYYY/MM/DD format)
+      const dateMatch = line.match(/(\d{4}\/\d{1,2}\/\d{1,2})/)
       if (dateMatch) {
         const date = dateMatch[1]
         
@@ -102,6 +105,43 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
                 description: description,
                 amount: creditAmount, // Positive for credit
                 type: 'credit' as const,
+                isMatched: false
+              })
+            }
+          }
+        }
+      }
+    }
+    
+    // If still no transactions found, try a simpler approach
+    if (transactions.length === 0) {
+      console.log('No transactions found with table parsing, trying simple amount matching...')
+      
+      for (const line of lines) {
+        // Look for any amount pattern
+        const amountMatch = line.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?)/)
+        if (amountMatch) {
+          const amount = parseFloat(amountMatch[1].replace(/,/g, ''))
+          
+          if (amount > 0.01) { // Filter out very small amounts
+            // Try to extract date
+            const dateMatch = line.match(/(\d{4}\/\d{1,2}\/\d{1,2})/)
+            const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0]
+            
+            // Clean up description
+            const description = line
+              .replace(amountMatch[1], '')
+              .replace(dateMatch ? dateMatch[1] : '', '')
+              .trim()
+              .replace(/\s+/g, ' ')
+            
+            if (description.length > 0) {
+              transactions.push({
+                id: `pdf-${id++}`,
+                date: date,
+                description: description,
+                amount: amount,
+                type: amount > 0 ? 'credit' : 'debit',
                 isMatched: false
               })
             }
