@@ -41,12 +41,21 @@ export async function GET(request: NextRequest) {
     // Log the token response to debug
     console.log('Xero token response:', JSON.stringify(tokenData, null, 2))
     
+    // Extract tenant ID from JWT token
+    let tenantId = 'default'
+    try {
+      const payload = JSON.parse(Buffer.from(tokenData.access_token.split('.')[1], 'base64').toString())
+      tenantId = payload.xero_tenantid || payload.tenant_id || 'default'
+      console.log('Extracted tenant ID from JWT:', tenantId)
+    } catch (jwtError) {
+      console.error('Error decoding JWT for tenant ID:', jwtError)
+    }
+    
     // Store the token in database (you might want to associate this with a user)
     const pool = getDatabasePool()
     
     // Handle missing refresh_token - Xero might not always provide it
     const refreshToken = tokenData.refresh_token || 'no_refresh_token'
-    const tenantId = tokenData.tenant_id || 'default'
     
     // Check if tenant_id column exists, if not use the old schema
     try {
