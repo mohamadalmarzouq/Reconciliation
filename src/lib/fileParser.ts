@@ -46,37 +46,65 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       }
     }
     
-    // Parse lines for transaction patterns
+    // Parse lines for transaction patterns - enhanced for bank statement tables
     const lines = allText.split('\n').filter(line => line.trim())
     
-    for (const line of lines) {
-      // Look for transaction patterns - enhanced for bank statements
-      const amountMatch = line.match(/([+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?)/)
-      if (amountMatch) {
-        const amountStr = amountMatch[1].replace(/[$,]/g, '')
-        const amount = parseFloat(amountStr)
+    // Look for table rows with date, description, and amount patterns
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // Look for date pattern at start of line (YYYY/MM/DD format)
+      const dateMatch = line.match(/^(\d{4}\/\d{1,2}\/\d{1,2})/)
+      if (dateMatch) {
+        const date = dateMatch[1]
         
-        if (Math.abs(amount) > 0.01) { // Filter out very small amounts
-          // Try to extract date (common formats)
-          const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/)
-          const date = dateMatch ? dateMatch[0] : new Date().toISOString().split('T')[0]
+        // Look for amounts in the line (both debit and credit)
+        const amounts = line.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?/g)
+        
+        if (amounts && amounts.length >= 2) {
+          // First amount is usually debit, second is credit
+          const debitAmount = parseFloat(amounts[0].replace(/,/g, ''))
+          const creditAmount = parseFloat(amounts[1].replace(/,/g, ''))
           
-          // Clean up description
-          const description = line
-            .replace(amountMatch[0], '')
-            .replace(dateMatch ? dateMatch[0] : '', '')
-            .trim()
-            .replace(/\s+/g, ' ')
-          
-          if (description.length > 0) {
-            transactions.push({
-              id: `pdf-${id++}`,
-              date: date,
-              description: description,
-              amount: amount,
-              type: amount > 0 ? 'credit' : 'debit',
-              isMatched: false
-            })
+          // Determine which amount is non-zero and create transaction
+          if (debitAmount > 0) {
+            // This is a debit transaction
+            const description = line
+              .replace(date, '')
+              .replace(amounts[0], '')
+              .replace(amounts[1], '')
+              .trim()
+              .replace(/\s+/g, ' ')
+            
+            if (description.length > 0) {
+              transactions.push({
+                id: `pdf-${id++}`,
+                date: date,
+                description: description,
+                amount: -debitAmount, // Negative for debit
+                type: 'debit' as const,
+                isMatched: false
+              })
+            }
+          } else if (creditAmount > 0) {
+            // This is a credit transaction
+            const description = line
+              .replace(date, '')
+              .replace(amounts[0], '')
+              .replace(amounts[1], '')
+              .trim()
+              .replace(/\s+/g, ' ')
+            
+            if (description.length > 0) {
+              transactions.push({
+                id: `pdf-${id++}`,
+                date: date,
+                description: description,
+                amount: creditAmount, // Positive for credit
+                type: 'credit' as const,
+                isMatched: false
+              })
+            }
           }
         }
       }
