@@ -118,14 +118,23 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
     
     const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
     console.log('Using tenant ID for contacts:', tenantId)
+    console.log('Making API call to:', 'https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false')
+    console.log('Request headers:', {
+      'Authorization': `Bearer ${token.access_token.substring(0, 20)}...`,
+      'Xero-tenant-id': tenantId,
+      'Accept': 'application/json'
+    })
     
-    const response = await fetch('https://api.xero.com/api.xro/2.0/Contacts', {
+    const response = await fetch('https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false', {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Xero-tenant-id': tenantId,
         'Accept': 'application/json'
       }
     })
+    
+    console.log('API response status:', response.status)
+    console.log('API response headers:', Object.fromEntries(response.headers.entries()))
     
     if (!response.ok) {
       const errorText = await response.text()
@@ -143,7 +152,19 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
     
     const data = await response.json()
     console.log('Xero contacts response:', JSON.stringify(data, null, 2))
-    return data.Contacts || []
+    
+    // Check for nested structure (newer Xero SDK versions)
+    let contacts = data.Contacts || data.body?.Contacts || data.body?.contacts || []
+    
+    console.log('Extracted contacts:', {
+      hasContacts: !!data.Contacts,
+      hasBodyContacts: !!data.body?.Contacts,
+      hasBodyContactsLower: !!data.body?.contacts,
+      contactsCount: contacts.length,
+      contacts: contacts.slice(0, 3) // Show first 3 contacts
+    })
+    
+    return contacts
   } catch (error) {
     console.error('Error fetching Xero contacts:', error)
     return []
@@ -160,7 +181,7 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
     const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
     console.log('Using tenant ID for invoices:', tenantId)
     
-    const response = await fetch('https://api.xero.com/api.xro/2.0/Invoices', {
+    const response = await fetch('https://api.xero.com/api.xro/2.0/Invoices?statuses=AUTHORISED&includeArchived=false', {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Xero-tenant-id': tenantId,
@@ -184,7 +205,19 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
     
     const data = await response.json()
     console.log('Xero invoices response:', JSON.stringify(data, null, 2))
-    return data.Invoices || []
+    
+    // Check for nested structure (newer Xero SDK versions)
+    let invoices = data.Invoices || data.body?.Invoices || data.body?.invoices || []
+    
+    console.log('Extracted invoices:', {
+      hasInvoices: !!data.Invoices,
+      hasBodyInvoices: !!data.body?.Invoices,
+      hasBodyInvoicesLower: !!data.body?.invoices,
+      invoicesCount: invoices.length,
+      invoices: invoices.slice(0, 3) // Show first 3 invoices
+    })
+    
+    return invoices
   } catch (error) {
     console.error('Error fetching Xero invoices:', error)
     return []
