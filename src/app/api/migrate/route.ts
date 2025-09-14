@@ -11,6 +11,12 @@ export async function POST() {
       ADD COLUMN IF NOT EXISTS tenant_id TEXT
     `)
     
+    // Make refresh_token nullable (in case it was created as NOT NULL)
+    await pool.query(`
+      ALTER TABLE xero_tokens 
+      ALTER COLUMN refresh_token DROP NOT NULL
+    `)
+    
     console.log('Database migration completed: tenant_id column added')
     
     return NextResponse.json({

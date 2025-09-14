@@ -38,8 +38,15 @@ export async function GET(request: NextRequest) {
     
     const tokenData = await tokenResponse.json()
     
+    // Log the token response to debug
+    console.log('Xero token response:', JSON.stringify(tokenData, null, 2))
+    
     // Store the token in database (you might want to associate this with a user)
     const pool = getDatabasePool()
+    
+    // Handle missing refresh_token - Xero might not always provide it
+    const refreshToken = tokenData.refresh_token || 'no_refresh_token'
+    const tenantId = tokenData.tenant_id || 'default'
     
     // Check if tenant_id column exists, if not use the old schema
     try {
@@ -54,9 +61,9 @@ export async function GET(request: NextRequest) {
           updated_at = NOW()
       `, [
         tokenData.access_token,
-        tokenData.refresh_token,
+        refreshToken,
         new Date(Date.now() + tokenData.expires_in * 1000),
-        tokenData.tenant_id || 'default'
+        tenantId
       ])
     } catch (error) {
       // Fallback to old schema if tenant_id column doesn't exist
@@ -71,7 +78,7 @@ export async function GET(request: NextRequest) {
           updated_at = NOW()
       `, [
         tokenData.access_token,
-        tokenData.refresh_token,
+        refreshToken,
         new Date(Date.now() + tokenData.expires_in * 1000)
       ])
     }

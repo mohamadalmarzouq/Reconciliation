@@ -84,7 +84,7 @@ export async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS xero_tokens (
       id SERIAL PRIMARY KEY,
       access_token TEXT NOT NULL,
-      refresh_token TEXT NOT NULL,
+      refresh_token TEXT,
       expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
       tenant_id TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
