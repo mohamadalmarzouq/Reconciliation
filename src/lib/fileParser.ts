@@ -10,42 +10,111 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       throw new Error(`File not found: ${filePath}`)
     }
     
-    // For now, we'll implement a basic PDF parser that doesn't rely on problematic libraries
-    // This creates a placeholder for manual review since PDF parsing is complex
+    // Use AWS Textract for professional PDF parsing
+    const AWS = require('aws-sdk')
     
-    const path = require('path')
+    // Configure AWS
+    AWS.config.update({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: process.env.AWS_REGION || 'us-east-1'
+    })
+    
+    const textract = new AWS.Textract()
+    
+    // Read the PDF file
+    const pdfBuffer = fs.readFileSync(filePath)
+    
+    // Use Textract to extract text from PDF
+    const params = {
+      Document: {
+        Bytes: pdfBuffer
+      }
+    }
+    
+    const result = await textract.detectDocumentText(params).promise()
+    
+    // Parse the extracted text for transactions
     const transactions: Transaction[] = []
     let id = 1
     
-    // Create a placeholder transaction that indicates the PDF was uploaded but needs manual processing
-    const placeholderTransaction = {
-      id: `pdf-${id++}`,
-      date: new Date().toISOString().split('T')[0],
-      description: `PDF Bank Statement Uploaded - ${path.basename(filePath)}`,
-      amount: 0,
-      type: 'credit' as const,
-      isMatched: false
+    // Extract text from Textract blocks
+    let allText = ''
+    for (const block of result.Blocks) {
+      if (block.BlockType === 'LINE' && block.Text) {
+        allText += block.Text + '\n'
+      }
     }
     
-    transactions.push(placeholderTransaction)
+    // Parse lines for transaction patterns
+    const lines = allText.split('\n').filter(line => line.trim())
     
-    // Add a note that manual processing is required
-    const manualNote = {
-      id: `pdf-${id++}`,
-      date: new Date().toISOString().split('T')[0],
-      description: 'NOTE: PDF parsing requires manual review. Please use CSV or XLSX for automatic processing.',
-      amount: 0,
-      type: 'credit' as const,
-      isMatched: false
+    for (const line of lines) {
+      // Look for transaction patterns - enhanced for bank statements
+      const amountMatch = line.match(/([+-]?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?)/)
+      if (amountMatch) {
+        const amountStr = amountMatch[1].replace(/[$,]/g, '')
+        const amount = parseFloat(amountStr)
+        
+        if (Math.abs(amount) > 0.01) { // Filter out very small amounts
+          // Try to extract date (common formats)
+          const dateMatch = line.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/)
+          const date = dateMatch ? dateMatch[0] : new Date().toISOString().split('T')[0]
+          
+          // Clean up description
+          const description = line
+            .replace(amountMatch[0], '')
+            .replace(dateMatch ? dateMatch[0] : '', '')
+            .trim()
+            .replace(/\s+/g, ' ')
+          
+          if (description.length > 0) {
+            transactions.push({
+              id: `pdf-${id++}`,
+              date: date,
+              description: description,
+              amount: amount,
+              type: amount > 0 ? 'credit' : 'debit',
+              isMatched: false
+            })
+          }
+        }
+      }
     }
     
-    transactions.push(manualNote)
+    // If no transactions found, create a placeholder
+    if (transactions.length === 0) {
+      const path = require('path')
+      transactions.push({
+        id: `pdf-${id++}`,
+        date: new Date().toISOString().split('T')[0],
+        description: `PDF Bank Statement - ${path.basename(filePath)} (Textract processing completed)`,
+        amount: 0,
+        type: 'credit' as const,
+        isMatched: false
+      })
+    }
     
     return transactions
     
   } catch (error) {
-    console.error('Error processing PDF:', error)
-    throw new Error('PDF processing failed. Please use CSV or XLSX format for automatic processing.')
+    console.error('Error processing PDF with Textract:', error)
+    
+    // Fallback to placeholder if Textract fails
+    const path = require('path')
+    const transactions: Transaction[] = []
+    let id = 1
+    
+    transactions.push({
+      id: `pdf-${id++}`,
+      date: new Date().toISOString().split('T')[0],
+      description: `PDF Bank Statement - ${path.basename(filePath)} (Textract processing failed)`,
+      amount: 0,
+      type: 'credit' as const,
+      isMatched: false
+    })
+    
+    return transactions
   }
 }
 
