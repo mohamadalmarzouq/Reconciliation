@@ -5,6 +5,7 @@ export interface XeroToken {
   access_token: string
   refresh_token: string
   expires_at: Date
+  tenant_id?: string
   created_at: Date
   updated_at: Date
 }
@@ -105,15 +106,21 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
       throw new Error('No valid Xero token found')
     }
     
+    const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
+    console.log('Using tenant ID for contacts:', tenantId)
+    
     const response = await fetch('https://api.xero.com/api.xro/2.0/Contacts', {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
-        'Xero-tenant-id': process.env.XERO_TENANT_ID || '',
+        'Xero-tenant-id': tenantId,
         'Accept': 'application/json'
       }
     })
     
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Xero contacts API error:', response.status, errorText)
+      
       if (response.status === 401) {
         // Token expired, try to refresh
         const refreshedToken = await refreshXeroToken(token.refresh_token)
@@ -121,10 +128,11 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
           return getXeroContacts() // Retry with new token
         }
       }
-      throw new Error(`Xero API error: ${response.status}`)
+      throw new Error(`Xero API error: ${response.status} - ${errorText}`)
     }
     
     const data = await response.json()
+    console.log('Xero contacts response:', JSON.stringify(data, null, 2))
     return data.Contacts || []
   } catch (error) {
     console.error('Error fetching Xero contacts:', error)
@@ -139,15 +147,21 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
       throw new Error('No valid Xero token found')
     }
     
+    const tenantId = token.tenant_id || process.env.XERO_TENANT_ID || ''
+    console.log('Using tenant ID for invoices:', tenantId)
+    
     const response = await fetch('https://api.xero.com/api.xro/2.0/Invoices', {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
-        'Xero-tenant-id': process.env.XERO_TENANT_ID || '',
+        'Xero-tenant-id': tenantId,
         'Accept': 'application/json'
       }
     })
     
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Xero invoices API error:', response.status, errorText)
+      
       if (response.status === 401) {
         // Token expired, try to refresh
         const refreshedToken = await refreshXeroToken(token.refresh_token)
@@ -155,10 +169,11 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
           return getXeroInvoices() // Retry with new token
         }
       }
-      throw new Error(`Xero API error: ${response.status}`)
+      throw new Error(`Xero API error: ${response.status} - ${errorText}`)
     }
     
     const data = await response.json()
+    console.log('Xero invoices response:', JSON.stringify(data, null, 2))
     return data.Invoices || []
   } catch (error) {
     console.error('Error fetching Xero invoices:', error)
