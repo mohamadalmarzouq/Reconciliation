@@ -48,89 +48,96 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
       }
     }
     
-    // Debug: Log the extracted text to understand the format
+    // Use OpenAI to intelligently parse the extracted text
     console.log('Extracted text from PDF:', allText.substring(0, 1000))
     
-    // Parse lines for transaction patterns - enhanced for bank statement tables
-    const lines = allText.split('\n').filter(line => line.trim())
-    
-    // Look for table rows with date, description, and amount patterns
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
+    try {
+      const { OpenAI } = await import('openai')
       
-      // Look for date pattern (YYYY/MM/DD format)
-      const dateMatch = line.match(/(\d{4}\/\d{1,2}\/\d{1,2})/)
-      if (dateMatch) {
-        const date = dateMatch[1]
-        
-        // Look for amounts in the line (both debit and credit)
-        const amounts = line.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?/g)
-        
-        if (amounts && amounts.length >= 2) {
-          // First amount is usually debit, second is credit
-          const debitAmount = parseFloat(amounts[0].replace(/,/g, ''))
-          const creditAmount = parseFloat(amounts[1].replace(/,/g, ''))
-          
-          // Determine which amount is non-zero and create transaction
-          if (debitAmount > 0) {
-            // This is a debit transaction
-            const description = line
-              .replace(date, '')
-              .replace(amounts[0], '')
-              .replace(amounts[1], '')
-              .trim()
-              .replace(/\s+/g, ' ')
-            
-            if (description.length > 0) {
-              transactions.push({
-                id: `pdf-${id++}`,
-                date: date,
-                description: description,
-                amount: -debitAmount, // Negative for debit
-                type: 'debit' as const,
-                isMatched: false
-              })
-            }
-          } else if (creditAmount > 0) {
-            // This is a credit transaction
-            const description = line
-              .replace(date, '')
-              .replace(amounts[0], '')
-              .replace(amounts[1], '')
-              .trim()
-              .replace(/\s+/g, ' ')
-            
-            if (description.length > 0) {
-              transactions.push({
-                id: `pdf-${id++}`,
-                date: date,
-                description: description,
-                amount: creditAmount, // Positive for credit
-                type: 'credit' as const,
-                isMatched: false
-              })
-            }
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      })
+      
+      const prompt = `You are a bank statement parser. Extract transactions from this KFH bank statement text:
+
+${allText}
+
+Return a JSON array of transactions with this exact format:
+[
+  {
+    "date": "2024-05-08",
+    "description": "RAMEZ SHOPPING CENTER", 
+    "amount": -13.74,
+    "type": "debit"
+  },
+  {
+    "date": "2024-05-09",
+    "description": "Salary TFR",
+    "amount": 559.00,
+    "type": "credit"
+  }
+]
+
+Rules:
+- Only include actual transactions, not headers, totals, or account information
+- Use negative amounts for debits (money going out)
+- Use positive amounts for credits (money coming in)
+- Format dates as YYYY-MM-DD
+- Clean up descriptions (remove extra spaces, special characters)
+- Return only valid JSON, no other text
+
+Extract all transactions from the bank statement:`
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert bank statement parser. Extract transaction data accurately and return only valid JSON."
+          },
+          {
+            role: "user",
+            content: prompt
           }
-        }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000
+      })
+
+      const responseText = completion.choices[0]?.message?.content || ''
+      console.log('OpenAI response:', responseText)
+      
+      // Parse the JSON response
+      const extractedTransactions = JSON.parse(responseText)
+      
+      // Convert to our Transaction format
+      for (const tx of extractedTransactions) {
+        transactions.push({
+          id: `pdf-${id++}`,
+          date: tx.date,
+          description: tx.description,
+          amount: tx.amount,
+          type: tx.type,
+          isMatched: false
+        })
       }
-    }
-    
-    // If still no transactions found, try a simpler approach
-    if (transactions.length === 0) {
-      console.log('No transactions found with table parsing, trying simple amount matching...')
+      
+    } catch (openaiError) {
+      console.error('OpenAI parsing failed:', openaiError)
+      
+      // Fallback to simple regex parsing if OpenAI fails
+      console.log('Falling back to regex parsing...')
+      const lines = allText.split('\n').filter(line => line.trim())
       
       for (const line of lines) {
-        // Look for any amount pattern
         const amountMatch = line.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2,3})?)/)
         if (amountMatch) {
           const amount = parseFloat(amountMatch[1].replace(/,/g, ''))
           
-          if (amount > 0.01) { // Filter out very small amounts
-            // Try to extract date
+          if (amount > 0.01) {
             const dateMatch = line.match(/(\d{4}\/\d{1,2}\/\d{1,2})/)
             const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0]
             
-            // Clean up description
             const description = line
               .replace(amountMatch[1], '')
               .replace(dateMatch ? dateMatch[1] : '', '')
