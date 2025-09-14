@@ -28,6 +28,7 @@ export default function ReviewPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [isMatching, setIsMatching] = useState(false)
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -86,6 +87,40 @@ export default function ReviewPage() {
     return 'text-red-600'
   }
 
+  const runAIMatching = async () => {
+    setIsMatching(true)
+    try {
+      const bankStatementId = sessionStorage.getItem('currentBankStatementId')
+      
+      const response = await fetch('/api/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bankStatementId: bankStatementId,
+          transactions: transactions
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        // Update transactions with AI matching results
+        setTransactions(result.transactions)
+        alert(`AI Matching completed! Found ${result.matchesFound} potential matches.`)
+      } else {
+        console.error('AI Matching failed:', result.error)
+        alert('AI Matching failed. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error running AI matching:', error)
+      alert('Error running AI matching. Please try again.')
+    } finally {
+      setIsMatching(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -105,8 +140,16 @@ export default function ReviewPage() {
             <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">
               📊 Export Report
             </button>
-            <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-              🧠 Run AI Matching
+            <button 
+              onClick={runAIMatching}
+              disabled={isMatching}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isMatching 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isMatching ? '🔄 Processing...' : '🧠 Run AI Matching'}
             </button>
           </div>
         </div>

@@ -8,24 +8,25 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { bankTransactions, accountingEntries } = await request.json()
+    const { bankStatementId, transactions } = await request.json()
 
-    if (!bankTransactions || !accountingEntries) {
+    if (!transactions || !Array.isArray(transactions)) {
       return NextResponse.json(
-        { error: 'Bank transactions and accounting entries are required' },
+        { error: 'Transactions array is required' },
         { status: 400 }
       )
     }
 
-    // Prepare data for OpenAI
-    const prompt = createReconciliationPrompt(bankTransactions, accountingEntries)
+    // For now, we'll do basic AI analysis without accounting entries
+    // In a full implementation, you'd fetch accounting entries from Xero/QuickBooks
+    const prompt = createBasicReconciliationPrompt(transactions)
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: `You are an expert financial reconciliation AI. Your job is to match bank transactions with accounting entries based on amount, date, description, and other relevant factors. Provide confidence scores and clear explanations for each match.`
+          content: `You are an expert financial reconciliation AI. Analyze bank transactions and provide insights about their nature, potential matches, and reconciliation suggestions. Focus on transaction patterns, amounts, and descriptions.`
         },
         {
           role: 'user',
@@ -41,19 +42,14 @@ export async function POST(request: NextRequest) {
       throw new Error('No response from OpenAI')
     }
 
-    // Parse the response (in a real app, you'd want more robust parsing)
-    const matches = parseOpenAIResponse(response, bankTransactions)
+    // Parse the response and update transactions
+    const updatedTransactions = parseAIResponse(response, transactions)
 
-    const result: OpenAIResponse = {
-      matches,
-      summary: {
-        totalProcessed: bankTransactions.length,
-        matchesFound: matches.length,
-        confidenceScore: matches.reduce((acc: number, match: { confidence: number }) => acc + match.confidence, 0) / matches.length || 0
-      }
-    }
-
-    return NextResponse.json(result)
+    return NextResponse.json({
+      success: true,
+      transactions: updatedTransactions,
+      matchesFound: updatedTransactions.filter(t => t.match && t.match.confidence > 0.5).length
+    })
 
   } catch (error) {
     console.error('Reconciliation error:', error)
@@ -64,25 +60,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function createReconciliationPrompt(transactions: Transaction[], entries: AccountingEntry[]): string {
+function createBasicReconciliationPrompt(transactions: Transaction[]): string {
   return `
-Please reconcile the following bank transactions with accounting entries:
+Analyze these bank transactions and provide reconciliation insights:
 
 BANK TRANSACTIONS:
 ${transactions.map(t => 
   `- ID: ${t.id}, Date: ${t.date}, Description: "${t.description}", Amount: ${t.amount}, Type: ${t.type}`
 ).join('\n')}
 
-ACCOUNTING ENTRIES:
-${entries.map(e => 
-  `- ID: ${e.id}, Date: ${e.date}, Description: "${e.description}", Amount: ${e.amount}, Account: ${e.account}`
-).join('\n')}
-
-For each bank transaction, provide:
-1. The best matching accounting entry ID (if any)
-2. Confidence score (0-1)
-3. Explanation of why it matches or doesn't match
-4. Suggested action: "match", "flag", "split", or "defer"
+For each transaction, provide:
+1. Confidence score (0-1) for how likely it is to be a legitimate business transaction
+2. Explanation of what this transaction likely represents
+3. Suggested action: "match", "flag", "split", or "defer"
+4. Any patterns or anomalies you notice
 
 Return the response as a JSON array of objects with this structure:
 [
@@ -90,37 +81,59 @@ Return the response as a JSON array of objects with this structure:
     "transactionId": "string",
     "confidence": number,
     "explanation": "string",
-    "suggestedAction": "string",
-    "accountingEntryId": "string" (optional)
+    "suggestedAction": "string"
   }
 ]
 `
 }
 
-function parseOpenAIResponse(response: string, transactions: Transaction[]) {
+function parseAIResponse(response: string, transactions: Transaction[]) {
   try {
     // Try to extract JSON from the response
     const jsonMatch = response.match(/\[[\s\S]*\]/)
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0])
+      const aiResults = JSON.parse(jsonMatch[0])
+      
+      // Update transactions with AI analysis
+      return transactions.map(transaction => {
+        const aiResult = aiResults.find((r: any) => r.transactionId === transaction.id)
+        
+        if (aiResult) {
+          return {
+            ...transaction,
+            match: {
+              confidence: aiResult.confidence || 0.5,
+              explanation: aiResult.explanation || 'AI analysis completed',
+              suggestedAction: aiResult.suggestedAction || 'flag',
+              accountingEntry: undefined
+            }
+          }
+        }
+        
+        return transaction
+      })
     }
     
-    // Fallback: create basic matches based on amount
+    // Fallback: create basic analysis
     return transactions.map(transaction => ({
-      transactionId: transaction.id,
-      confidence: 0.5,
-      explanation: 'Basic amount-based matching (AI response parsing failed)',
-      suggestedAction: 'flag' as const,
-      accountingEntryId: undefined
+      ...transaction,
+      match: {
+        confidence: 0.5,
+        explanation: 'Basic AI analysis (response parsing failed)',
+        suggestedAction: 'flag' as const,
+        accountingEntry: undefined
+      }
     }))
   } catch (error) {
-    console.error('Error parsing OpenAI response:', error)
+    console.error('Error parsing AI response:', error)
     return transactions.map(transaction => ({
-      transactionId: transaction.id,
-      confidence: 0.3,
-      explanation: 'Unable to process AI response',
-      suggestedAction: 'defer' as const,
-      accountingEntryId: undefined
+      ...transaction,
+      match: {
+        confidence: 0.3,
+        explanation: 'Unable to process AI response',
+        suggestedAction: 'defer' as const,
+        accountingEntry: undefined
+      }
     }))
   }
 }
