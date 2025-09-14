@@ -40,9 +40,11 @@ export async function parsePDF(filePath: string): Promise<Transaction[]> {
     
     // Extract text from Textract blocks
     let allText = ''
-    for (const block of result.Blocks) {
-      if (block.BlockType === 'LINE' && block.Text) {
-        allText += block.Text + '\n'
+    if (result.Blocks) {
+      for (const block of result.Blocks) {
+        if (block.BlockType === 'LINE' && block.Text) {
+          allText += block.Text + '\n'
+        }
       }
     }
     
