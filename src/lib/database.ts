@@ -80,6 +80,17 @@ export async function initializeDatabase() {
       )
     `)
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS xero_tokens (
+        id SERIAL PRIMARY KEY,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT NOT NULL,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
     console.log('Database tables initialized successfully')
   } catch (error) {
     console.error('Error initializing database:', error)
