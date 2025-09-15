@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getXeroContacts } from '@/lib/xero'
 
 export async function GET(request: NextRequest) {
