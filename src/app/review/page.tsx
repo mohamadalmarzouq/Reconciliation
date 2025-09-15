@@ -33,6 +33,11 @@ export default function ReviewPage() {
   const [isReconciling, setIsReconciling] = useState(false)
   const [xeroConnected, setXeroConnected] = useState(false)
   const [xeroData, setXeroData] = useState<any>(null)
+  const [dateFilter, setDateFilter] = useState({
+    from: null as Date | null,
+    to: null as Date | null
+  })
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -49,10 +54,12 @@ export default function ReviewPage() {
         
         if (result.success) {
           setTransactions(result.transactions)
+          setFilteredTransactions(result.transactions) // Initialize filtered transactions
         } else {
           console.error('Failed to fetch transactions:', result.error)
           // Fallback to empty array if no data
           setTransactions([])
+          setFilteredTransactions([])
         }
       } catch (error) {
         console.error('Error fetching transactions:', error)
@@ -74,6 +81,67 @@ export default function ReviewPage() {
 
     fetchTransactions()
   }, [])
+
+  // Apply date filter
+  const applyDateFilter = () => {
+    if (!dateFilter.from && !dateFilter.to) {
+      setFilteredTransactions(transactions)
+      return
+    }
+
+    const filtered = transactions.filter(transaction => {
+      const transactionDate = new Date(transaction.date)
+      
+      if (dateFilter.from && transactionDate < dateFilter.from) {
+        return false
+      }
+      
+      if (dateFilter.to && transactionDate > dateFilter.to) {
+        return false
+      }
+      
+      return true
+    })
+    
+    setFilteredTransactions(filtered)
+  }
+
+  // Quick date presets
+  const setDatePreset = (preset: string) => {
+    const now = new Date()
+    let from: Date | null = null
+    let to: Date | null = null
+
+    switch (preset) {
+      case 'thisMonth':
+        from = new Date(now.getFullYear(), now.getMonth(), 1)
+        to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        break
+      case 'lastMonth':
+        from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        to = new Date(now.getFullYear(), now.getMonth(), 0)
+        break
+      case 'last3Months':
+        from = new Date(now.getFullYear(), now.getMonth() - 3, 1)
+        to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        break
+      case 'thisYear':
+        from = new Date(now.getFullYear(), 0, 1)
+        to = new Date(now.getFullYear(), 11, 31)
+        break
+      case 'clear':
+        from = null
+        to = null
+        break
+    }
+
+    setDateFilter({ from, to })
+  }
+
+  // Apply filter when date filter changes
+  useEffect(() => {
+    applyDateFilter()
+  }, [dateFilter, transactions])
 
   const getStatusIcon = (transaction: Transaction) => {
     if (transaction.isMatched) {
@@ -157,9 +225,24 @@ export default function ReviewPage() {
 
   const fetchXeroData = async () => {
     try {
+      // Build query parameters for date filtering
+      const params = new URLSearchParams()
+      if (dateFilter.from) {
+        params.append('from', dateFilter.from.toISOString().split('T')[0])
+      }
+      if (dateFilter.to) {
+        params.append('to', dateFilter.to.toISOString().split('T')[0])
+      }
+      
+      const queryString = params.toString()
+      const contactsUrl = queryString ? `/api/xero/contacts?${queryString}` : '/api/xero/contacts'
+      const invoicesUrl = queryString ? `/api/xero/invoices?${queryString}` : '/api/xero/invoices'
+      
+      console.log('Fetching Xero data with date filter:', { from: dateFilter.from, to: dateFilter.to })
+      
       const [contactsResponse, invoicesResponse] = await Promise.all([
-        fetch('/api/xero/contacts'),
-        fetch('/api/xero/invoices')
+        fetch(contactsUrl),
+        fetch(invoicesUrl)
       ])
       
       const contacts = await contactsResponse.json()
@@ -168,7 +251,11 @@ export default function ReviewPage() {
       setXeroData({ contacts: contacts.contacts || [], invoices: invoices.invoices || [] })
       setXeroConnected(true)
       
-      alert(`Connected to Xero! Found ${contacts.contacts?.length || 0} contacts and ${invoices.invoices?.length || 0} invoices.`)
+      const dateRangeText = (dateFilter.from || dateFilter.to) 
+        ? ` for ${dateFilter.from?.toLocaleDateString() || 'start'} to ${dateFilter.to?.toLocaleDateString() || 'end'}`
+        : ''
+      
+      alert(`Connected to Xero! Found ${contacts.contacts?.length || 0} contacts and ${invoices.invoices?.length || 0} invoices${dateRangeText}.`)
     } catch (error) {
       console.error('Error fetching Xero data:', error)
       alert('Error fetching Xero data. Please try again.')
@@ -277,27 +364,91 @@ export default function ReviewPage() {
           </div>
         </div>
 
+        {/* Date Filter */}
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">📅 Date Filter</h3>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">From:</label>
+              <input
+                type="date"
+                value={dateFilter.from ? dateFilter.from.toISOString().split('T')[0] : ''}
+                onChange={(e) => setDateFilter(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : null }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">To:</label>
+              <input
+                type="date"
+                value={dateFilter.to ? dateFilter.to.toISOString().split('T')[0] : ''}
+                onChange={(e) => setDateFilter(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : null }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDatePreset('thisMonth')}
+                className="px-3 py-2 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition-colors"
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => setDatePreset('lastMonth')}
+                className="px-3 py-2 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition-colors"
+              >
+                Last Month
+              </button>
+              <button
+                onClick={() => setDatePreset('last3Months')}
+                className="px-3 py-2 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition-colors"
+              >
+                Last 3 Months
+              </button>
+              <button
+                onClick={() => setDatePreset('thisYear')}
+                className="px-3 py-2 bg-blue-100 text-blue-700 rounded-md text-sm hover:bg-blue-200 transition-colors"
+              >
+                This Year
+              </button>
+              <button
+                onClick={() => setDatePreset('clear')}
+                className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          {(dateFilter.from || dateFilter.to) && (
+            <div className="mt-3 text-sm text-gray-600">
+              Showing {filteredTransactions.length} of {transactions.length} transactions
+              {dateFilter.from && ` from ${dateFilter.from.toLocaleDateString()}`}
+              {dateFilter.to && ` to ${dateFilter.to.toLocaleDateString()}`}
+            </div>
+          )}
+        </div>
+
         {/* Summary Cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
-            <h3 className="text-2xl font-bold text-gray-900">{transactions.length}</h3>
+            <h3 className="text-2xl font-bold text-gray-900">{filteredTransactions.length}</h3>
             <p className="text-gray-600">Total Transactions</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-green-600">
-              {transactions.filter(t => t.isMatched).length}
+              {filteredTransactions.filter(t => t.isMatched).length}
             </h3>
             <p className="text-gray-600">Matched</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-yellow-600">
-              {transactions.filter(t => !t.isMatched && t.match?.suggestedAction === 'flag').length}
+              {filteredTransactions.filter(t => !t.isMatched && t.match?.suggestedAction === 'flag').length}
             </h3>
             <p className="text-gray-600">Flagged</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-red-600">
-              {transactions.filter(t => !t.isMatched && t.match?.suggestedAction !== 'flag').length}
+              {filteredTransactions.filter(t => !t.isMatched && t.match?.suggestedAction !== 'flag').length}
             </h3>
             <p className="text-gray-600">Unmatched</p>
           </div>
@@ -318,7 +469,7 @@ export default function ReviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((transaction) => (
+                {filteredTransactions.map((transaction) => (
                   <tr
                     key={transaction.id}
                     className={`border-b border-gray-100 hover:bg-gray-50 ${getStatusColor(transaction)}`}

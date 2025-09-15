@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getXeroContacts } from '@/lib/xero'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const contacts = await getXeroContacts()
+    const { searchParams } = new URL(request.url)
+    const fromDate = searchParams.get('from')
+    const toDate = searchParams.get('to')
+    
+    const dateFilter = (fromDate || toDate) ? {
+      from: fromDate ? new Date(fromDate) : undefined,
+      to: toDate ? new Date(toDate) : undefined
+    } : undefined
+    
+    const contacts = await getXeroContacts(dateFilter)
     
     return NextResponse.json({
       success: true,

@@ -158,7 +158,7 @@ export async function getXeroTenantId(): Promise<string> {
   }
 }
 
-export async function getXeroContacts(): Promise<XeroContact[]> {
+export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): Promise<XeroContact[]> {
   try {
     const token = await getXeroToken()
     if (!token) {
@@ -167,14 +167,29 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
     
     const tenantId = await getXeroTenantId()
     console.log('Using tenant ID for contacts:', tenantId)
-    console.log('Making API call to:', 'https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false')
+    
+    // Build date filter for contacts (filter by creation date)
+    let dateFilterQuery = 'includeArchived=false'
+    if (dateFilter?.from || dateFilter?.to) {
+      const filters = ['includeArchived=false']
+      if (dateFilter.from) {
+        filters.push(`CreatedDateUTC >= DateTime(${dateFilter.from.toISOString().split('T')[0]})`)
+      }
+      if (dateFilter.to) {
+        filters.push(`CreatedDateUTC <= DateTime(${dateFilter.to.toISOString().split('T')[0]})`)
+      }
+      dateFilterQuery = filters.join(' AND ')
+    }
+    
+    const contactsUrl = `https://api.xero.com/api.xro/2.0/Contacts?${dateFilterQuery}`
+    console.log('Making API call to:', contactsUrl)
     console.log('Request headers:', {
       'Authorization': `Bearer ${token.access_token.substring(0, 20)}...`,
       'Xero-tenant-id': tenantId,
       'Accept': 'application/json'
     })
     
-    const response = await fetch('https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false', {
+    const response = await fetch(contactsUrl, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Xero-tenant-id': tenantId,
@@ -220,7 +235,7 @@ export async function getXeroContacts(): Promise<XeroContact[]> {
   }
 }
 
-export async function getXeroInvoices(): Promise<XeroInvoice[]> {
+export async function getXeroInvoices(dateFilter?: { from?: Date; to?: Date }): Promise<XeroInvoice[]> {
   try {
     const token = await getXeroToken()
     if (!token) {
@@ -230,7 +245,23 @@ export async function getXeroInvoices(): Promise<XeroInvoice[]> {
     const tenantId = await getXeroTenantId()
     console.log('Using tenant ID for invoices:', tenantId)
     
-    const response = await fetch('https://api.xero.com/api.xro/2.0/Invoices?statuses=AUTHORISED&includeArchived=false', {
+    // Build date filter for invoices (filter by invoice date)
+    let dateFilterQuery = 'statuses=AUTHORISED&includeArchived=false'
+    if (dateFilter?.from || dateFilter?.to) {
+      const filters = ['statuses=AUTHORISED', 'includeArchived=false']
+      if (dateFilter.from) {
+        filters.push(`Date >= DateTime(${dateFilter.from.toISOString().split('T')[0]})`)
+      }
+      if (dateFilter.to) {
+        filters.push(`Date <= DateTime(${dateFilter.to.toISOString().split('T')[0]})`)
+      }
+      dateFilterQuery = filters.join('&')
+    }
+    
+    const invoicesUrl = `https://api.xero.com/api.xro/2.0/Invoices?${dateFilterQuery}`
+    console.log('Making API call to:', invoicesUrl)
+    
+    const response = await fetch(invoicesUrl, {
       headers: {
         'Authorization': `Bearer ${token.access_token}`,
         'Xero-tenant-id': tenantId,
