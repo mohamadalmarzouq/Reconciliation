@@ -184,15 +184,25 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
     // Build date filter for contacts (filter by creation date)
     let dateFilterQuery = 'includeArchived=false'
     if (dateFilter?.from || dateFilter?.to) {
-      const filters = ['includeArchived=false']
+      const filters = []
       if (dateFilter.from) {
-        filters.push(`CreatedDateUTC >= DateTime(${dateFilter.from.toISOString().split('T')[0]})`)
+        const fromDate = dateFilter.from.toISOString().split('T')[0].split('-')
+        filters.push(`CreatedDateUTC >= DateTime(${fromDate[0]},${fromDate[1]},${fromDate[2]})`)
       }
       if (dateFilter.to) {
-        filters.push(`CreatedDateUTC <= DateTime(${dateFilter.to.toISOString().split('T')[0]})`)
+        const toDate = dateFilter.to.toISOString().split('T')[0].split('-')
+        filters.push(`CreatedDateUTC <= DateTime(${toDate[0]},${toDate[1]},${toDate[2]})`)
       }
-      dateFilterQuery = filters.join(' AND ')
+      if (filters.length > 0) {
+        dateFilterQuery = `where=${filters.join(' AND ')}&includeArchived=false`
+      }
     }
+    
+    console.log('Date filter for contacts:', {
+      from: dateFilter?.from?.toISOString().split('T')[0],
+      to: dateFilter?.to?.toISOString().split('T')[0],
+      query: dateFilterQuery
+    })
     
     const contactsUrl = `https://api.xero.com/api.xro/2.0/Contacts?${dateFilterQuery}`
     console.log('Making API call to:', contactsUrl)
@@ -272,15 +282,25 @@ export async function getXeroInvoices(dateFilter?: { from?: Date; to?: Date }): 
     // Build date filter for invoices (filter by invoice date)
     let dateFilterQuery = 'statuses=AUTHORISED&includeArchived=false'
     if (dateFilter?.from || dateFilter?.to) {
-      const filters = ['statuses=AUTHORISED', 'includeArchived=false']
+      const filters = []
       if (dateFilter.from) {
-        filters.push(`Date >= DateTime(${dateFilter.from.toISOString().split('T')[0]})`)
+        const fromDate = dateFilter.from.toISOString().split('T')[0].split('-')
+        filters.push(`Date >= DateTime(${fromDate[0]},${fromDate[1]},${fromDate[2]})`)
       }
       if (dateFilter.to) {
-        filters.push(`Date <= DateTime(${dateFilter.to.toISOString().split('T')[0]})`)
+        const toDate = dateFilter.to.toISOString().split('T')[0].split('-')
+        filters.push(`Date <= DateTime(${toDate[0]},${toDate[1]},${toDate[2]})`)
       }
-      dateFilterQuery = filters.join('&')
+      if (filters.length > 0) {
+        dateFilterQuery = `where=${filters.join(' AND ')}&statuses=AUTHORISED&includeArchived=false`
+      }
     }
+    
+    console.log('Date filter for invoices:', {
+      from: dateFilter?.from?.toISOString().split('T')[0],
+      to: dateFilter?.to?.toISOString().split('T')[0],
+      query: dateFilterQuery
+    })
     
     const invoicesUrl = `https://api.xero.com/api.xro/2.0/Invoices?${dateFilterQuery}`
     console.log('Making API call to:', invoicesUrl)
