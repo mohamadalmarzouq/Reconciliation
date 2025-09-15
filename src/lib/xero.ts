@@ -181,30 +181,13 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
     const tenantId = await getXeroTenantId()
     console.log('Using tenant ID for contacts:', tenantId)
     
-    // Build date filter for contacts (filter by creation date)
-    let dateFilterQuery = 'includeArchived=false'
-    if (dateFilter?.from || dateFilter?.to) {
-      const filters = []
-      if (dateFilter.from) {
-        const fromDate = dateFilter.from.toISOString().split('T')[0].split('-')
-        filters.push(`CreatedDateUTC >= DateTime(${fromDate[0]},${fromDate[1]},${fromDate[2]})`)
-      }
-      if (dateFilter.to) {
-        const toDate = dateFilter.to.toISOString().split('T')[0].split('-')
-        filters.push(`CreatedDateUTC <= DateTime(${toDate[0]},${toDate[1]},${toDate[2]})`)
-      }
-      if (filters.length > 0) {
-        dateFilterQuery = `where=${filters.join(' AND ')}&includeArchived=false`
-      }
-    }
+    // For contacts, we'll fetch all and filter client-side since Xero contacts API doesn't support reliable date filtering
+    const contactsUrl = `https://api.xero.com/api.xro/2.0/Contacts?includeArchived=false`
     
-    console.log('Date filter for contacts:', {
+    console.log('Fetching all contacts (will filter client-side):', {
       from: dateFilter?.from?.toISOString().split('T')[0],
-      to: dateFilter?.to?.toISOString().split('T')[0],
-      query: dateFilterQuery
+      to: dateFilter?.to?.toISOString().split('T')[0]
     })
-    
-    const contactsUrl = `https://api.xero.com/api.xro/2.0/Contacts?${dateFilterQuery}`
     console.log('Making API call to:', contactsUrl)
     console.log('Request headers:', {
       'Authorization': `Bearer ${token.access_token.substring(0, 20)}...`,
@@ -254,7 +237,7 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
     // Check for nested structure (newer Xero SDK versions)
     let contacts = data.Contacts || data.body?.Contacts || data.body?.contacts || []
     
-    console.log('Extracted contacts:', {
+    console.log('Extracted contacts before filtering:', {
       hasContacts: !!data.Contacts,
       hasBodyContacts: !!data.body?.Contacts,
       hasBodyContactsLower: !!data.body?.contacts,
@@ -262,7 +245,38 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
       contacts: contacts.slice(0, 3) // Show first 3 contacts
     })
     
-    return contacts
+    // Apply client-side date filtering for contacts
+    let filteredContacts = contacts
+    if (dateFilter?.from || dateFilter?.to) {
+      filteredContacts = contacts.filter(contact => {
+        // Use UpdatedDateUTC if available, otherwise use CreatedDateUTC
+        const contactDate = contact.UpdatedDateUTC || contact.CreatedDateUTC
+        if (!contactDate) return true // Include if no date available
+        
+        const contactDateObj = new Date(contactDate)
+        
+        if (dateFilter.from && contactDateObj < dateFilter.from) {
+          return false
+        }
+        
+        if (dateFilter.to && contactDateObj > dateFilter.to) {
+          return false
+        }
+        
+        return true
+      })
+    }
+    
+    console.log('Contacts after date filtering:', {
+      originalCount: contacts.length,
+      filteredCount: filteredContacts.length,
+      dateFilter: {
+        from: dateFilter?.from?.toISOString().split('T')[0],
+        to: dateFilter?.to?.toISOString().split('T')[0]
+      }
+    })
+    
+    return filteredContacts
   } catch (error) {
     console.error('Error fetching Xero contacts:', error)
     return []
