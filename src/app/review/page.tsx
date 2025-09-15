@@ -258,7 +258,14 @@ export default function ReviewPage() {
       alert(`Connected to Xero! Found ${contacts.contacts?.length || 0} contacts and ${invoices.invoices?.length || 0} invoices${dateRangeText}.`)
     } catch (error) {
       console.error('Error fetching Xero data:', error)
-      alert('Error fetching Xero data. Please try again.')
+      
+      // Check if it's an authentication error
+      if (error.message && error.message.includes('403')) {
+        alert('Xero authentication failed. Please click "Connect Xero" to reconnect.')
+        setXeroConnected(false)
+      } else {
+        alert('Error fetching Xero data. Please try again.')
+      }
     }
   }
 

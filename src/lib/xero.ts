@@ -109,6 +109,19 @@ export async function refreshXeroToken(refreshToken: string): Promise<XeroToken 
   }
 }
 
+export async function clearExpiredTokens(): Promise<void> {
+  try {
+    const pool = getDatabasePool()
+    await pool.query(`
+      DELETE FROM xero_tokens 
+      WHERE expires_at <= NOW()
+    `)
+    console.log('Cleared expired Xero tokens')
+  } catch (error) {
+    console.error('Error clearing expired tokens:', error)
+  }
+}
+
 export async function getXeroTenantId(): Promise<string> {
   try {
     const token = await getXeroToken()
@@ -206,10 +219,21 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
       
       if (response.status === 401) {
         // Token expired, try to refresh
+        console.log('Token expired, attempting refresh...')
         const refreshedToken = await refreshXeroToken(token.refresh_token)
         if (refreshedToken) {
-          return getXeroContacts() // Retry with new token
+          console.log('Token refreshed successfully, retrying...')
+          return getXeroContacts(dateFilter) // Retry with new token
         }
+      } else if (response.status === 403) {
+        console.error('Xero API 403 Forbidden - Authentication failed')
+        console.error('Token details:', {
+          hasToken: !!token.access_token,
+          tokenLength: token.access_token?.length,
+          tenantId: token.tenant_id,
+          expiresAt: token.expires_at
+        })
+        throw new Error(`Xero authentication failed (403). Please reconnect to Xero.`)
       }
       throw new Error(`Xero API error: ${response.status} - ${errorText}`)
     }
@@ -275,10 +299,21 @@ export async function getXeroInvoices(dateFilter?: { from?: Date; to?: Date }): 
       
       if (response.status === 401) {
         // Token expired, try to refresh
+        console.log('Token expired, attempting refresh...')
         const refreshedToken = await refreshXeroToken(token.refresh_token)
         if (refreshedToken) {
-          return getXeroInvoices() // Retry with new token
+          console.log('Token refreshed successfully, retrying...')
+          return getXeroInvoices(dateFilter) // Retry with new token
         }
+      } else if (response.status === 403) {
+        console.error('Xero API 403 Forbidden - Authentication failed')
+        console.error('Token details:', {
+          hasToken: !!token.access_token,
+          tokenLength: token.access_token?.length,
+          tenantId: token.tenant_id,
+          expiresAt: token.expires_at
+        })
+        throw new Error(`Xero authentication failed (403). Please reconnect to Xero.`)
       }
       throw new Error(`Xero API error: ${response.status} - ${errorText}`)
     }
