@@ -283,7 +283,7 @@ export default function ReviewPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          transactions: transactions,
+          transactions: filteredTransactions,
           xeroData: xeroData
         })
       })
@@ -291,7 +291,19 @@ export default function ReviewPage() {
       const result = await response.json()
       
       if (result.success) {
-        setTransactions(result.transactions)
+        // Update the filtered transactions with reconciliation results
+        setFilteredTransactions(result.transactions)
+        // Also update the main transactions array to keep them in sync
+        setTransactions(prev => {
+          const updated = [...prev]
+          result.transactions.forEach((reconciledTransaction: any) => {
+            const index = updated.findIndex(t => t.id === reconciledTransaction.id)
+            if (index !== -1) {
+              updated[index] = reconciledTransaction
+            }
+          })
+          return updated
+        })
         alert(`Reconciliation completed! Matched ${result.matchesFound} transactions.`)
       } else {
         console.error('Reconciliation failed:', result.error)
