@@ -260,7 +260,7 @@ export default function ReviewPage() {
       console.error('Error fetching Xero data:', error)
       
       // Check if it's an authentication error
-      if (error.message && error.message.includes('403')) {
+      if (error instanceof Error && error.message && error.message.includes('403')) {
         alert('Xero authentication failed. Please click "Connect Xero" to reconnect.')
         setXeroConnected(false)
       } else {
