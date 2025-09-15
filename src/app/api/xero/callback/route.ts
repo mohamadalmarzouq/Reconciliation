@@ -41,29 +41,37 @@ export async function GET(request: NextRequest) {
     // Log the token response to debug
     console.log('Xero token response:', JSON.stringify(tokenData, null, 2))
     
-    // Extract tenant ID from JWT token
+    // Get tenant ID from Xero connections API
     let tenantId = 'default'
     try {
-      const payload = JSON.parse(Buffer.from(tokenData.access_token.split('.')[1], 'base64').toString())
-      console.log('JWT payload:', JSON.stringify(payload, null, 2))
+      const connectionsResponse = await fetch('https://api.xero.com/connections', {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Accept': 'application/json'
+        }
+      })
       
-      // Try different possible field names for tenant ID
-      tenantId = payload.xero_tenantid || 
-                 payload.tenant_id || 
-                 payload.xero_tenant_id || 
-                 payload.tenantid || 
-                 payload.tenantId ||
-                 payload.aud ||
-                 'default'
-      
-      console.log('Extracted tenant ID from JWT:', tenantId)
-      console.log('Available payload keys:', Object.keys(payload))
-    } catch (jwtError) {
-      console.error('Error decoding JWT for tenant ID:', jwtError)
+      if (connectionsResponse.ok) {
+        const connectionsData = await connectionsResponse.json()
+        console.log('Xero connections response:', JSON.stringify(connectionsData, null, 2))
+        
+        if (connectionsData && connectionsData.length > 0) {
+          tenantId = connectionsData[0].tenantId
+          console.log('Extracted tenant ID from connections API:', tenantId)
+        }
+      } else {
+        console.error('Failed to get connections:', await connectionsResponse.text())
+      }
+    } catch (connectionsError) {
+      console.error('Error getting tenant ID from connections API:', connectionsError)
     }
     
     // Store the token in database (you might want to associate this with a user)
     const pool = getDatabasePool()
+    
+    // Clear any existing tokens to ensure fresh connection
+    await pool.query('DELETE FROM xero_tokens')
+    console.log('Cleared existing Xero tokens')
     
     // Handle missing refresh_token - Xero might not always provide it
     const refreshToken = tokenData.refresh_token || 'no_refresh_token'
