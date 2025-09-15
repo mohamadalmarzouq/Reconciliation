@@ -248,7 +248,7 @@ export async function getXeroContacts(dateFilter?: { from?: Date; to?: Date }): 
     // Apply client-side date filtering for contacts
     let filteredContacts = contacts
     if (dateFilter?.from || dateFilter?.to) {
-      filteredContacts = contacts.filter(contact => {
+      filteredContacts = contacts.filter((contact: any) => {
         // Use UpdatedDateUTC if available, otherwise use CreatedDateUTC
         const contactDate = contact.UpdatedDateUTC || contact.CreatedDateUTC
         if (!contactDate) return true // Include if no date available
