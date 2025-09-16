@@ -118,7 +118,8 @@ Extract all transactions from the bank statement:`
           description: tx.description,
           amount: tx.amount,
           type: tx.type,
-          isMatched: false
+          isMatched: false,
+          status: 'pending'
         })
       }
       
@@ -151,7 +152,8 @@ Extract all transactions from the bank statement:`
                 description: description,
                 amount: amount,
                 type: amount > 0 ? 'credit' : 'debit',
-                isMatched: false
+                isMatched: false,
+                status: 'pending'
               })
             }
           }
@@ -168,7 +170,8 @@ Extract all transactions from the bank statement:`
         description: `PDF Bank Statement - ${path.basename(filePath)} (Textract processing completed)`,
         amount: 0,
         type: 'credit' as const,
-        isMatched: false
+        isMatched: false,
+        status: 'pending'
       })
     }
     
@@ -188,7 +191,8 @@ Extract all transactions from the bank statement:`
       description: `PDF Bank Statement - ${path.basename(filePath)} (Textract processing failed)`,
       amount: 0,
       type: 'credit' as const,
-      isMatched: false
+      isMatched: false,
+      status: 'pending'
     })
     
     return transactions
@@ -221,7 +225,8 @@ export async function parseCSV(filePath: string): Promise<Transaction[]> {
             description: description,
             amount: amount,
             type: amount > 0 ? 'credit' : 'debit',
-            isMatched: false
+            isMatched: false,
+            status: 'pending'
           })
         }
       })
@@ -263,7 +268,8 @@ export async function parseXLSX(filePath: string): Promise<Transaction[]> {
           description: description,
           amount: amount,
           type: amount > 0 ? 'credit' : 'debit',
-          isMatched: false
+          isMatched: false,
+          status: 'pending'
         })
       }
     }
