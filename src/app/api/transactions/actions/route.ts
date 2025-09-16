@@ -10,9 +10,44 @@ export async function POST(request: NextRequest) {
       reviewerName = 'Anonymous User',
       reviewerEmail,
       notes,
-      ipAddress,
       userAgent
     } = body
+
+    // Get real IP address from request headers
+    const getClientIP = () => {
+      // Try different header sources for IP
+      const forwarded = request.headers.get('x-forwarded-for')
+      const realIP = request.headers.get('x-real-ip')
+      const cfConnectingIP = request.headers.get('cf-connecting-ip')
+      
+      if (forwarded) {
+        // x-forwarded-for can be a comma-separated list, take the first one
+        return forwarded.split(',')[0].trim()
+      }
+      
+      if (realIP) return realIP
+      if (cfConnectingIP) return cfConnectingIP
+      
+      // Fallback - this might not work in serverless environments
+      return null
+    }
+
+    // Validate IP address format
+    const validateIP = (ip: string | null): string | null => {
+      if (!ip) return null
+      
+      // Basic IP validation (IPv4 and IPv6)
+      const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+      const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/
+      
+      if (ipv4Regex.test(ip) || ipv6Regex.test(ip)) {
+        return ip
+      }
+      
+      return null
+    }
+
+    const clientIP = validateIP(getClientIP())
 
     if (!transactionId || !actionType) {
       return NextResponse.json(
@@ -95,7 +130,7 @@ export async function POST(request: NextRequest) {
       `, [
         transactionId, actionType, previousStatus, newStatus,
         reviewerName, reviewerEmail, notes, previousConfidence,
-        newConfidence, ipAddress, userAgent
+        newConfidence, clientIP, userAgent
       ])
 
       // Commit transaction

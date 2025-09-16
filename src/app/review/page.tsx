@@ -61,7 +61,6 @@ export default function ReviewPage() {
           actionType,
           reviewerName: 'Current User', // TODO: Get from auth context
           reviewerEmail: 'user@example.com', // TODO: Get from auth context
-          ipAddress: '', // TODO: Get client IP
           userAgent: navigator.userAgent
         })
       })
@@ -117,7 +116,6 @@ export default function ReviewPage() {
           actionType: 'note',
           reviewerName: 'Current User', // TODO: Get from auth context
           notes: noteText,
-          ipAddress: '', // TODO: Get client IP
           userAgent: navigator.userAgent
         })
       })
