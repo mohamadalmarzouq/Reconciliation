@@ -48,6 +48,10 @@ export async function initializeDatabase() {
         explanation TEXT,
         suggested_action VARCHAR(20),
         accounting_entry_id VARCHAR(100),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'flagged', 'under_review')),
+        reviewed_by VARCHAR(100),
+        reviewed_at TIMESTAMP WITH TIME ZONE,
+        review_notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
@@ -89,6 +93,24 @@ export async function initializeDatabase() {
       tenant_id TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS transaction_actions (
+      id SERIAL PRIMARY KEY,
+      transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+      action_type VARCHAR(20) NOT NULL CHECK (action_type IN ('accept', 'reject', 'flag', 'note', 'undo')),
+      previous_status VARCHAR(20),
+      new_status VARCHAR(20),
+      reviewer_name VARCHAR(100),
+      reviewer_email VARCHAR(255),
+      notes TEXT,
+      confidence_before DECIMAL(3,2),
+      confidence_after DECIMAL(3,2),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      ip_address INET,
+      user_agent TEXT
     )
   `)
 

@@ -10,6 +10,10 @@ interface Transaction {
   balance?: number
   type: 'debit' | 'credit'
   isMatched: boolean
+  status: 'pending' | 'accepted' | 'rejected' | 'flagged' | 'under_review'
+  reviewedBy?: string
+  reviewedAt?: string
+  reviewNotes?: string
   match?: {
     confidence: number
     explanation: string
@@ -38,6 +42,115 @@ export default function ReviewPage() {
     to: null as Date | null
   })
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
+  const [showNoteModal, setShowNoteModal] = useState(false)
+  const [noteTransaction, setNoteTransaction] = useState<Transaction | null>(null)
+  const [noteText, setNoteText] = useState('')
+  const [processingAction, setProcessingAction] = useState<string | null>(null)
+
+  // Handler for transaction actions
+  const handleTransactionAction = async (transactionId: string, actionType: 'accept' | 'reject' | 'flag') => {
+    setProcessingAction(transactionId)
+    try {
+      const response = await fetch('/api/transactions/actions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transactionId,
+          actionType,
+          reviewerName: 'Current User', // TODO: Get from auth context
+          reviewerEmail: 'user@example.com', // TODO: Get from auth context
+          ipAddress: '', // TODO: Get client IP
+          userAgent: navigator.userAgent
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update both main and filtered transactions
+        const updateTransaction = (transaction: Transaction) => 
+          transaction.id === transactionId ? {
+            ...transaction,
+            status: result.transaction.status,
+            reviewedBy: result.transaction.reviewed_by,
+            reviewedAt: result.transaction.reviewed_at,
+            reviewNotes: result.transaction.review_notes
+          } : transaction
+
+        setTransactions(prev => prev.map(updateTransaction))
+        setFilteredTransactions(prev => prev.map(updateTransaction))
+
+        alert(`Transaction ${actionType}ed successfully!`)
+      } else {
+        alert(`Failed to ${actionType} transaction: ${result.error}`)
+      }
+    } catch (error) {
+      console.error(`Error ${actionType}ing transaction:`, error)
+      alert(`Error ${actionType}ing transaction. Please try again.`)
+    } finally {
+      setProcessingAction(null)
+    }
+  }
+
+  // Handler for adding notes
+  const handleAddNote = (transaction: Transaction) => {
+    setNoteTransaction(transaction)
+    setNoteText(transaction.reviewNotes || '')
+    setShowNoteModal(true)
+  }
+
+  // Save note
+  const saveNote = async () => {
+    if (!noteTransaction) return
+
+    setProcessingAction(noteTransaction.id)
+    try {
+      const response = await fetch('/api/transactions/actions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transactionId: noteTransaction.id,
+          actionType: 'note',
+          reviewerName: 'Current User', // TODO: Get from auth context
+          notes: noteText,
+          ipAddress: '', // TODO: Get client IP
+          userAgent: navigator.userAgent
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update both main and filtered transactions
+        const updateTransaction = (transaction: Transaction) => 
+          transaction.id === noteTransaction.id ? {
+            ...transaction,
+            reviewNotes: noteText,
+            reviewedBy: result.transaction.reviewed_by,
+            reviewedAt: result.transaction.reviewed_at
+          } : transaction
+
+        setTransactions(prev => prev.map(updateTransaction))
+        setFilteredTransactions(prev => prev.map(updateTransaction))
+
+        setShowNoteModal(false)
+        setNoteTransaction(null)
+        setNoteText('')
+        alert('Note saved successfully!')
+      } else {
+        alert(`Failed to save note: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error saving note:', error)
+      alert('Error saving note. Please try again.')
+    } finally {
+      setProcessingAction(null)
+    }
+  }
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -144,22 +257,65 @@ export default function ReviewPage() {
   }, [dateFilter, transactions])
 
   const getStatusIcon = (transaction: Transaction) => {
-    if (transaction.isMatched) {
-      return <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-sm">✓</div>
-    } else if (transaction.match?.suggestedAction === 'flag') {
-      return <div className="w-5 h-5 bg-yellow-600 text-white rounded-full flex items-center justify-center text-sm">!</div>
-    } else {
-      return <div className="w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-sm">✗</div>
+    switch (transaction.status) {
+      case 'accepted':
+        return <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-sm">✓</div>
+      case 'rejected':
+        return <div className="w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-sm">✗</div>
+      case 'flagged':
+        return <div className="w-5 h-5 bg-yellow-600 text-white rounded-full flex items-center justify-center text-sm">⚠</div>
+      case 'under_review':
+        return <div className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm">👁</div>
+      default: // pending
+        if (transaction.isMatched) {
+          return <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-sm">✓</div>
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return <div className="w-5 h-5 bg-yellow-600 text-white rounded-full flex items-center justify-center text-sm">!</div>
+        } else {
+          return <div className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center text-sm">?</div>
+        }
     }
   }
 
   const getStatusColor = (transaction: Transaction) => {
-    if (transaction.isMatched) {
-      return 'bg-green-50 border-green-200'
-    } else if (transaction.match?.suggestedAction === 'flag') {
-      return 'bg-yellow-50 border-yellow-200'
-    } else {
-      return 'bg-red-50 border-red-200'
+    switch (transaction.status) {
+      case 'accepted':
+        return 'bg-green-50 border-green-200'
+      case 'rejected':
+        return 'bg-red-50 border-red-200'
+      case 'flagged':
+        return 'bg-yellow-50 border-yellow-200'
+      case 'under_review':
+        return 'bg-blue-50 border-blue-200'
+      default: // pending
+        if (transaction.isMatched) {
+          return 'bg-green-50 border-green-200'
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return 'bg-yellow-50 border-yellow-200'
+        } else {
+          return 'bg-gray-50 border-gray-200'
+        }
+    }
+  }
+
+  const getStatusText = (transaction: Transaction) => {
+    switch (transaction.status) {
+      case 'accepted':
+        return 'Accepted'
+      case 'rejected':
+        return 'Rejected'
+      case 'flagged':
+        return 'Flagged'
+      case 'under_review':
+        return 'Under Review'
+      default: // pending
+        if (transaction.isMatched) {
+          return 'Matched'
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return 'Flagged'
+        } else {
+          return 'Unmatched'
+        }
     }
   }
 
@@ -448,28 +604,34 @@ export default function ReviewPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-5 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-gray-900">{filteredTransactions.length}</h3>
             <p className="text-gray-600">Total Transactions</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-green-600">
-              {filteredTransactions.filter(t => t.isMatched).length}
+              {filteredTransactions.filter(t => t.status === 'accepted').length}
             </h3>
-            <p className="text-gray-600">Matched</p>
+            <p className="text-gray-600">Accepted</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
+            <h3 className="text-2xl font-bold text-red-600">
+              {filteredTransactions.filter(t => t.status === 'rejected').length}
+            </h3>
+            <p className="text-gray-600">Rejected</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
             <h3 className="text-2xl font-bold text-yellow-600">
-              {filteredTransactions.filter(t => !t.isMatched && t.match?.suggestedAction === 'flag').length}
+              {filteredTransactions.filter(t => t.status === 'flagged').length}
             </h3>
             <p className="text-gray-600">Flagged</p>
           </div>
           <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 text-center">
-            <h3 className="text-2xl font-bold text-red-600">
-              {filteredTransactions.filter(t => !t.isMatched && t.match?.suggestedAction !== 'flag').length}
+            <h3 className="text-2xl font-bold text-gray-600">
+              {filteredTransactions.filter(t => t.status === 'pending' || !t.status).length}
             </h3>
-            <p className="text-gray-600">Unmatched</p>
+            <p className="text-gray-600">Pending Review</p>
           </div>
         </div>
 
@@ -504,9 +666,13 @@ export default function ReviewPage() {
                       <div className="flex items-center gap-2">
                         {getStatusIcon(transaction)}
                         <span className="text-sm font-medium">
-                          {transaction.isMatched ? 'Matched' : 
-                           transaction.match?.suggestedAction === 'flag' ? 'Flagged' : 'Unmatched'}
+                          {getStatusText(transaction)}
                         </span>
+                        {transaction.reviewedBy && (
+                          <span className="text-xs text-gray-500">
+                            by {transaction.reviewedBy}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4">
@@ -517,12 +683,47 @@ export default function ReviewPage() {
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <button
-                        onClick={() => setSelectedTransaction(transaction)}
-                        className="bg-gray-200 text-gray-900 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors"
-                      >
-                        👁️ Review
-                      </button>
+                      <div className="flex gap-2">
+                        {transaction.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleTransactionAction(transaction.id, 'accept')}
+                              className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs hover:bg-green-200 transition-colors"
+                              title="Accept Match"
+                            >
+                              ✅
+                            </button>
+                            <button
+                              onClick={() => handleTransactionAction(transaction.id, 'reject')}
+                              className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-200 transition-colors"
+                              title="Reject Match"
+                            >
+                              ❌
+                            </button>
+                            <button
+                              onClick={() => handleTransactionAction(transaction.id, 'flag')}
+                              className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs hover:bg-yellow-200 transition-colors"
+                              title="Flag Transaction"
+                            >
+                              ⚠️
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => handleAddNote(transaction)}
+                          className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-colors"
+                          title="Add Note"
+                        >
+                          📝
+                        </button>
+                        <button
+                          onClick={() => setSelectedTransaction(transaction)}
+                          className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs hover:bg-gray-200 transition-colors"
+                          title="View Details"
+                        >
+                          👁️
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -591,9 +792,119 @@ export default function ReviewPage() {
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">Accept Match</button>
-                  <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">Reject Match</button>
-                  <button className="bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors">Flag for Review</button>
+                  {selectedTransaction.status === 'pending' && (
+                    <>
+                      <button 
+                        onClick={() => {
+                          handleTransactionAction(selectedTransaction.id, 'accept')
+                          setSelectedTransaction(null)
+                        }}
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                      >
+                        ✅ Accept Match
+                      </button>
+                      <button 
+                        onClick={() => {
+                          handleTransactionAction(selectedTransaction.id, 'reject')
+                          setSelectedTransaction(null)
+                        }}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                      >
+                        ❌ Reject Match
+                      </button>
+                      <button 
+                        onClick={() => {
+                          handleTransactionAction(selectedTransaction.id, 'flag')
+                          setSelectedTransaction(null)
+                        }}
+                        className="bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+                      >
+                        ⚠️ Flag for Review
+                      </button>
+                    </>
+                  )}
+                  <button 
+                    onClick={() => {
+                      handleAddNote(selectedTransaction)
+                      setSelectedTransaction(null)
+                    }}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    📝 Add Note
+                  </button>
+                  {selectedTransaction.status !== 'pending' && (
+                    <div className="text-sm text-gray-600 flex items-center">
+                      Status: <span className="font-medium ml-1">{getStatusText(selectedTransaction)}</span>
+                      {selectedTransaction.reviewedBy && (
+                        <span className="ml-2">by {selectedTransaction.reviewedBy}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Note Modal */}
+        {showNoteModal && noteTransaction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Add Note</h3>
+                  <button
+                    onClick={() => {
+                      setShowNoteModal(false)
+                      setNoteTransaction(null)
+                      setNoteText('')
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✗
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Transaction: {noteTransaction.description}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Amount: ${Math.abs(noteTransaction.amount).toFixed(2)}
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Note
+                  </label>
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={4}
+                    placeholder="Add your review notes here..."
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={saveNote}
+                    disabled={processingAction === noteTransaction.id}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {processingAction === noteTransaction.id ? 'Saving...' : 'Save Note'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNoteModal(false)
+                      setNoteTransaction(null)
+                      setNoteText('')
+                    }}
+                    className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>

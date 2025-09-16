@@ -7,6 +7,10 @@ export interface Transaction {
   type: 'debit' | 'credit'
   isMatched: boolean
   match?: ReconciliationMatch
+  status: 'pending' | 'accepted' | 'rejected' | 'flagged' | 'under_review'
+  reviewedBy?: string
+  reviewedAt?: string
+  reviewNotes?: string
 }
 
 export interface ReconciliationMatch {
@@ -74,4 +78,20 @@ export interface OpenAIResponse {
     matchesFound: number
     confidenceScore: number
   }
+}
+
+export interface TransactionAction {
+  id: string
+  transactionId: string
+  actionType: 'accept' | 'reject' | 'flag' | 'note' | 'undo'
+  previousStatus?: string
+  newStatus?: string
+  reviewerName: string
+  reviewerEmail?: string
+  notes?: string
+  confidenceBefore?: number
+  confidenceAfter?: number
+  createdAt: string
+  ipAddress?: string
+  userAgent?: string
 }
