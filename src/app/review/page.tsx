@@ -684,7 +684,7 @@ export default function ReviewPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        {transaction.status === 'pending' && (
+                        {(transaction.status === 'pending' || !transaction.status) && (
                           <>
                             <button
                               onClick={() => handleTransactionAction(transaction.id, 'accept')}
@@ -792,7 +792,7 @@ export default function ReviewPage() {
                 </div>
 
                 <div className="flex gap-3 mt-6">
-                  {selectedTransaction.status === 'pending' && (
+                  {(selectedTransaction.status === 'pending' || !selectedTransaction.status) && (
                     <>
                       <button 
                         onClick={() => {
@@ -832,7 +832,7 @@ export default function ReviewPage() {
                   >
                     📝 Add Note
                   </button>
-                  {selectedTransaction.status !== 'pending' && (
+                  {selectedTransaction.status && selectedTransaction.status !== 'pending' && (
                     <div className="text-sm text-gray-600 flex items-center">
                       Status: <span className="font-medium ml-1">{getStatusText(selectedTransaction)}</span>
                       {selectedTransaction.reviewedBy && (

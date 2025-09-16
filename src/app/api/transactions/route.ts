@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
       balance: row.balance ? parseFloat(row.balance) : undefined,
       type: row.type,
       isMatched: row.is_matched,
+      status: row.status || 'pending',
+      reviewedBy: row.reviewed_by,
+      reviewedAt: row.reviewed_at,
+      reviewNotes: row.review_notes,
       match: row.is_matched ? {
         confidence: row.confidence || 0,
         explanation: row.explanation || '',
