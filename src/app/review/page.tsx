@@ -479,7 +479,7 @@ export default function ReviewPage() {
       const contacts = await contactsResponse.json()
       const invoices = await invoicesResponse.json()
       
-      setXeroData({ contacts: contacts.contacts || [], invoices: invoices.invoices || [] })
+      setXeroData({ contacts, invoices })
       setXeroConnected(true)
       
       const dateRangeText = (dateFilter.from || dateFilter.to) 
