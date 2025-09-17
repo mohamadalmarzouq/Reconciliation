@@ -35,8 +35,11 @@ export default function ReviewPage() {
   const [isMatching, setIsMatching] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isReconciling, setIsReconciling] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<'xero' | 'zoho'>('xero')
   const [xeroConnected, setXeroConnected] = useState(false)
+  const [zohoConnected, setZohoConnected] = useState(false)
   const [xeroData, setXeroData] = useState<any>(null)
+  const [zohoData, setZohoData] = useState<any>(null)
   const [dateFilter, setDateFilter] = useState({
     from: null as Date | null,
     to: null as Date | null
@@ -377,6 +380,34 @@ export default function ReviewPage() {
     }
   }
 
+  const connectToZoho = async () => {
+    setIsConnecting(true)
+    try {
+      const response = await fetch('/api/zoho/connect')
+      const result = await response.json()
+      
+      if (result.authUrl) {
+        // Redirect to Zoho OAuth
+        window.location.href = result.authUrl
+      } else {
+        alert('Failed to get Zoho connection URL')
+      }
+    } catch (error) {
+      console.error('Error connecting to Zoho:', error)
+      alert('Error connecting to Zoho. Please try again.')
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const connectToProvider = () => {
+    if (selectedProvider === 'xero') {
+      connectToXero()
+    } else {
+      connectToZoho()
+    }
+  }
+
   const fetchXeroData = async () => {
     try {
       // Build query parameters for date filtering
@@ -501,38 +532,90 @@ export default function ReviewPage() {
             >
               {isMatching ? '🔄 Processing...' : '🧠 AI Analysis'}
             </button>
-            {!xeroConnected ? (
-              <button 
-                onClick={connectToXero}
-                disabled={isConnecting}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isConnecting 
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
+            {/* Provider Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Provider:</label>
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value as 'xero' | 'zoho')}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {isConnecting ? '🔄 Connecting...' : '🔗 Connect Xero'}
-              </button>
+                <option value="xero">🟢 Xero</option>
+                <option value="zoho">🔵 Zoho Books</option>
+              </select>
+            </div>
+
+            {/* Dynamic Connection Buttons */}
+            {selectedProvider === 'xero' ? (
+              <>
+                {!xeroConnected ? (
+                  <button 
+                    onClick={connectToXero}
+                    disabled={isConnecting}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isConnecting 
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    {isConnecting ? '🔄 Connecting...' : '🔗 Connect Xero'}
+                  </button>
+                ) : (
+                  <button 
+                    onClick={fetchXeroData}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                  >
+                    📊 Fetch Xero Data
+                  </button>
+                )}
+                {xeroConnected && (
+                  <button 
+                    onClick={runReconciliation}
+                    disabled={isReconciling}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isReconciling 
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
+                  </button>
+                )}
+              </>
             ) : (
-              <button 
-                onClick={fetchXeroData}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
-              >
-                📊 Fetch Xero Data
-              </button>
-            )}
-            {xeroConnected && (
-              <button 
-                onClick={runReconciliation}
-                disabled={isReconciling}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  isReconciling 
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                    : 'bg-purple-600 text-white hover:bg-purple-700'
-                }`}
-              >
-                {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
-              </button>
+              <>
+                {!zohoConnected ? (
+                  <button 
+                    onClick={connectToZoho}
+                    disabled={isConnecting}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isConnecting 
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isConnecting ? '🔄 Connecting...' : '🔗 Connect Zoho'}
+                  </button>
+                ) : (
+                  <button 
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    📊 Fetch Zoho Data
+                  </button>
+                )}
+                {zohoConnected && (
+                  <button 
+                    disabled={isReconciling}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      isReconciling 
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
