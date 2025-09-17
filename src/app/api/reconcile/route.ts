@@ -228,9 +228,9 @@ function parseXeroReconciliationResponse(response: string, transactions: Transac
         
         if (aiResult) {
           const matchedInvoice = aiResult.matchedInvoiceId ? 
-            xeroData.invoices.find((i: any) => i.InvoiceID === aiResult.matchedInvoiceId) : null
+            xeroData.invoices.invoices?.find((i: any) => i.InvoiceID === aiResult.matchedInvoiceId) : null
           const matchedContact = aiResult.matchedContactId ? 
-            xeroData.contacts.find((c: any) => c.ContactID === aiResult.matchedContactId) : null
+            xeroData.contacts.contacts?.find((c: any) => c.ContactID === aiResult.matchedContactId) : null
           
           return {
             ...transaction,
