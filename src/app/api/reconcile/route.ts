@@ -21,12 +21,28 @@ export async function POST(request: NextRequest) {
     let updatedTransactions: any[]
 
     // Check if we have provider data
-    const hasXeroData = xeroData && (xeroData.contacts?.contacts?.length > 0 || xeroData.invoices?.invoices?.length > 0)
-    const hasZohoData = zohoData && (zohoData.contacts?.contacts?.length > 0 || zohoData.invoices?.invoices?.length > 0)
+    const hasXeroData = xeroData && (
+      (xeroData.contacts?.contacts && xeroData.contacts.contacts.length > 0) || 
+      (xeroData.invoices?.invoices && xeroData.invoices.invoices.length > 0)
+    )
+    const hasZohoData = zohoData && (
+      (zohoData.contacts?.contacts && zohoData.contacts.contacts.length > 0) || 
+      (zohoData.invoices?.invoices && zohoData.invoices.invoices.length > 0)
+    )
+    
+    console.log('Provider data validation:', {
+      provider,
+      hasXeroData,
+      hasZohoData,
+      xeroContactsCount: xeroData?.contacts?.contacts?.length || 0,
+      xeroInvoicesCount: xeroData?.invoices?.invoices?.length || 0,
+      zohoContactsCount: zohoData?.contacts?.contacts?.length || 0,
+      zohoInvoicesCount: zohoData?.invoices?.invoices?.length || 0
+    })
 
     if (provider === 'xero' && hasXeroData) {
       // Full reconciliation with Xero data
-      prompt = createXeroReconciliationPrompt(transactions, xeroData.contacts, xeroData.invoices)
+      prompt = createXeroReconciliationPrompt(transactions, xeroData.contacts.contacts, xeroData.invoices.invoices)
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
@@ -52,7 +68,7 @@ export async function POST(request: NextRequest) {
       updatedTransactions = parseXeroReconciliationResponse(response, transactions, xeroData)
     } else if (provider === 'zoho' && hasZohoData) {
       // Full reconciliation with Zoho data
-      prompt = createZohoReconciliationPrompt(transactions, zohoData.contacts, zohoData.invoices)
+      prompt = createZohoReconciliationPrompt(transactions, zohoData.contacts.contacts, zohoData.invoices.invoices)
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4',
