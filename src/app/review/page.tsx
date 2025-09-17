@@ -183,12 +183,19 @@ export default function ReviewPage() {
       }
     }
 
-    // Check for Xero connection success
+    // Check for connection success
     const urlParams = new URLSearchParams(window.location.search)
     const success = urlParams.get('success')
     if (success === 'xero_connected') {
       alert('✅ Xero connected successfully! You can now fetch your Xero data.')
       setXeroConnected(true)
+      setSelectedProvider('xero')
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (success === 'zoho_connected') {
+      alert('✅ Zoho Books connected successfully! You can now fetch your Zoho data.')
+      setZohoConnected(true)
+      setSelectedProvider('zoho')
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname)
     }
@@ -408,6 +415,45 @@ export default function ReviewPage() {
     }
   }
 
+  const fetchZohoData = async () => {
+    try {
+      // Build query parameters for date filtering
+      const params = new URLSearchParams()
+      if (dateFilter.from) {
+        params.append('from', dateFilter.from.toISOString().split('T')[0])
+      }
+      if (dateFilter.to) {
+        params.append('to', dateFilter.to.toISOString().split('T')[0])
+      }
+
+      const [contactsResponse, invoicesResponse] = await Promise.all([
+        fetch(`/api/zoho/contacts?${params.toString()}`),
+        fetch(`/api/zoho/invoices?${params.toString()}`)
+      ])
+
+      const contacts = await contactsResponse.json()
+      const invoices = await invoicesResponse.json()
+
+      setZohoData({ contacts, invoices })
+
+      const dateRangeText = dateFilter.from || dateFilter.to 
+        ? ` for ${dateFilter.from ? dateFilter.from.toLocaleDateString() : 'start'} to ${dateFilter.to ? dateFilter.to.toLocaleDateString() : 'end'}`
+        : ''
+
+      alert(`Connected to Zoho! Found ${contacts.contacts?.length || 0} contacts and ${invoices.invoices?.length || 0} invoices${dateRangeText}.`)
+    } catch (error) {
+      console.error('Error fetching Zoho data:', error)
+      
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message && error.message.includes('401')) {
+        alert('Zoho authentication failed. Please click "Connect Zoho" to reconnect.')
+        setZohoConnected(false)
+      } else {
+        alert('Error fetching Zoho data. Please try again.')
+      }
+    }
+  }
+
   const fetchXeroData = async () => {
     try {
       // Build query parameters for date filtering
@@ -454,9 +500,12 @@ export default function ReviewPage() {
     }
   }
 
-  const runReconciliation = async () => {
-    if (!xeroData) {
-      alert('Please connect to Xero first!')
+  const runReconciliation = async (provider: 'xero' | 'zoho' = selectedProvider) => {
+    const providerData = provider === 'xero' ? xeroData : zohoData
+    const providerName = provider === 'xero' ? 'Xero' : 'Zoho'
+    
+    if (!providerData) {
+      alert(`Please connect to ${providerName} first!`)
       return
     }
     
@@ -469,7 +518,9 @@ export default function ReviewPage() {
         },
         body: JSON.stringify({
           transactions: filteredTransactions,
-          xeroData: xeroData
+          xeroData: provider === 'xero' ? xeroData : null,
+          zohoData: provider === 'zoho' ? zohoData : null,
+          provider: provider
         })
       })
       
@@ -570,7 +621,7 @@ export default function ReviewPage() {
                 )}
                 {xeroConnected && (
                   <button 
-                    onClick={runReconciliation}
+                    onClick={() => runReconciliation('xero')}
                     disabled={isReconciling}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                       isReconciling 
@@ -598,6 +649,7 @@ export default function ReviewPage() {
                   </button>
                 ) : (
                   <button 
+                    onClick={fetchZohoData}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
                   >
                     📊 Fetch Zoho Data
@@ -605,6 +657,7 @@ export default function ReviewPage() {
                 )}
                 {zohoConnected && (
                   <button 
+                    onClick={() => runReconciliation('zoho')}
                     disabled={isReconciling}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                       isReconciling 
