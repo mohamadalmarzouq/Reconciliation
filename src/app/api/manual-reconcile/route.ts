@@ -86,6 +86,16 @@ export async function POST(request: NextRequest) {
       reconciliationResult = await performSpecificReconciliation(bankTransactions, secondaryTransactions, category)
     }
 
+    // Add detailed logging for debugging
+    console.log('Manual reconciliation results:', {
+      scope,
+      category,
+      bankTransactionsCount: bankTransactions.length,
+      secondaryTransactionsCount: secondaryTransactions.length,
+      matchesCount: reconciliationResult.matches.length,
+      sampleSecondaryTransactions: secondaryTransactions.slice(0, 3)
+    })
+
     return NextResponse.json({
       success: true,
       message: `Manual reconciliation completed using ${scope} mode${scope === 'specific' ? ` with ${category} category` : ''}`,
@@ -97,6 +107,12 @@ export async function POST(request: NextRequest) {
         totalSecondaryTransactions: secondaryTransactions.length,
         matchesFound: reconciliationResult.matches.length,
         confidenceScore: reconciliationResult.averageConfidence
+      },
+      debug: {
+        scope,
+        category,
+        secondaryFileProcessed: !!secondaryFile,
+        secondaryTransactionsFound: secondaryTransactions.length
       }
     })
 
