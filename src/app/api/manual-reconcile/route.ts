@@ -321,50 +321,78 @@ Return as JSON array:
     case 'delivery':
       return `${basePrompt}
 
-This is a TALABAT ACCOUNT STATEMENT. Focus ONLY on extracting the main revenue streams that get deposited to the bank.
+**TALABAT DELIVERY RECONCILIATION - REVENUE EXTRACTION RULES**
 
-**EXTRACT ONLY THESE 3 TRANSACTION TYPES:**
+You are analyzing a TALABAT ACCOUNT STATEMENT. Your ONLY job is to find and extract these 3 specific revenue types that get deposited to the restaurant's bank account.
 
-1. **"Restaurant Credit Card Sales"** - Customer card payments (CREDIT column)
-2. **"Restaurant Debit Card Sales"** - Customer debit payments (CREDIT column)  
-3. **"TGO Cash Sales"** - Cash order payments (CREDIT column)
+**MANDATORY EXTRACTION RULES:**
 
-**SIMPLE EXTRACTION RULES:**
-- Look for rows with these EXACT descriptions
-- Extract the amount from the CREDIT column (positive money earned)
-- Use the date from the Date column
-- Convert date from MM/DD/YYYY to YYYY-MM-DD format
-- All these are "credit" type (money earned from Talabat)
+**RULE 1: RESTAURANT CREDIT CARD SALES**
+- Search for EXACT text: "Restaurant Credit Card Sales"
+- Location: Look in the "Description" column
+- Amount: Extract from the "Credit" column (negative values like -2,678.650)
+- Convert negative credit to positive amount: 2678.65
+- Date: Use the date from the same row
 
-**IGNORE:**
-- Bill Settlements (internal Talabat accounting)
-- Commission fees (not bank deposits)
-- Platform charges (fees, not revenue)
-- Promotional costs (not bank deposits)
+**RULE 2: RESTAURANT DEBIT CARD SALES**  
+- Search for EXACT text: "Restaurant Debit Card Sales"
+- Location: Look in the "Description" column
+- Amount: Extract from the "Credit" column (negative values like -1,202.500)
+- Convert negative credit to positive amount: 1202.50
+- Date: Use the date from the same row
 
-Return ONLY these 3 transaction types as JSON:
+**RULE 3: TGO CASH SALES**
+- Search for EXACT text: "TGO Cash Sales" 
+- Location: Look in the "Description" column
+- Amount: Extract from the "Credit" column (negative values like -240.400)
+- Convert negative credit to positive amount: 240.40
+- Date: Use the date from the same row
+
+**CRITICAL INSTRUCTIONS:**
+1. SCAN the entire document for the word "Talabat" to confirm this is a Talabat statement
+2. Look for a TABLE structure with columns: Date | Invoice | Description | Due | Currency | Debit | Credit | Balance
+3. Find rows where Description column contains the EXACT phrases above
+4. Extract amounts from the CREDIT column (they appear as negative numbers)
+5. Convert negative credit amounts to positive numbers
+6. Convert dates from MM/DD/YYYY format to YYYY-MM-DD
+7. Return EXACTLY 3 transactions (one for each rule above)
+
+**DATE CONVERSION EXAMPLES:**
+- 12/31/2024 → 2024-12-31
+- 12/8/2024 → 2024-12-08
+
+**AMOUNT CONVERSION EXAMPLES:**
+- Credit column shows: -2,678.650 → Extract as: 2678.65
+- Credit column shows: -1,202.500 → Extract as: 1202.50
+- Credit column shows: -240.400 → Extract as: 240.40
+
+**REQUIRED JSON OUTPUT FORMAT:**
+Return EXACTLY this structure with the 3 transactions:
+
 [
   {
-    "date": "2024-12-31",
+    "date": "YYYY-MM-DD",
     "description": "Talabat - Restaurant Credit Card Sales",
-    "amount": 2678.65,
+    "amount": [extracted_positive_amount],
     "type": "credit"
   },
   {
-    "date": "2024-12-31", 
-    "description": "Talabat - Restaurant Debit Card Sales",
-    "amount": 1202.50,
+    "date": "YYYY-MM-DD",
+    "description": "Talabat - Restaurant Debit Card Sales", 
+    "amount": [extracted_positive_amount],
     "type": "credit"
   },
   {
-    "date": "2024-12-31",
-    "description": "Talabat - TGO Cash Sales", 
-    "amount": 240.40,
+    "date": "YYYY-MM-DD",
+    "description": "Talabat - TGO Cash Sales",
+    "amount": [extracted_positive_amount],
     "type": "credit"
   }
 ]
 
-The total of these 3 amounts should match the Talabat deposit in the bank statement.`
+**VALIDATION:** The sum of these 3 amounts should equal the total Talabat deposit in the bank statement.
+
+**IF YOU CANNOT FIND ALL 3 TRANSACTION TYPES:** Return only the ones you find, but follow the exact same format.`
 
     case 'pos':
       return `${basePrompt}
