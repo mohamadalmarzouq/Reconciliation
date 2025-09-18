@@ -37,8 +37,35 @@ export default function ManualPage() {
 
     setIsProcessing(true)
     try {
-      // Implementation will go here
-      alert('Manual reconciliation processing will be implemented here!')
+      const formData = new FormData()
+      formData.append('bankFile', bankFile)
+      if (secondaryFile) {
+        formData.append('secondaryFile', secondaryFile)
+      }
+      formData.append('scope', scope)
+      if (scope === 'specific') {
+        formData.append('category', category)
+      }
+
+      const response = await fetch('/api/manual-reconcile', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Store results and redirect to review
+        sessionStorage.setItem('manualReconciliationResult', JSON.stringify(result))
+        sessionStorage.setItem('reconciliationMode', 'manual')
+        
+        alert(`${result.message}\nFound ${result.summary.matchesFound} matches out of ${result.summary.totalBankTransactions} bank transactions.`)
+        
+        // Redirect to a manual review page
+        window.location.href = '/manual-review'
+      } else {
+        alert(`Reconciliation failed: ${result.error}`)
+      }
     } catch (error) {
       console.error('Error processing reconciliation:', error)
       alert('Error processing reconciliation. Please try again.')
