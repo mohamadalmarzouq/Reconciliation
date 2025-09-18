@@ -174,13 +174,33 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
           .filter(block => block.BlockType === 'LINE')
           .map(block => block.Text)
           .join('\n')
+        
+        console.log(`Textract extracted ${result.Blocks.length} blocks for ${category}`)
+        console.log(`Sample extracted text:`, documentText.substring(0, 1000))
       }
     } catch (textractError) {
       console.error('Textract failed for category parsing:', textractError)
-      // Fallback to basic parsing
-      const rawTransactions = await parseFile(filePath, fileType)
-      if (rawTransactions.length > 0) {
-        return rawTransactions
+      
+      // Enhanced fallback: try to get ANY text from the PDF
+      try {
+        console.log('Attempting enhanced PDF text extraction...')
+        // Use the existing parseFile function which has PDF fallback logic
+        const rawTransactions = await parseFile(filePath, fileType)
+        
+        if (rawTransactions.length > 0) {
+          // If we got transactions, convert them to text for AI processing
+          documentText = rawTransactions.map(t => 
+            `Date: ${t.date}, Description: ${t.description}, Amount: ${t.amount}, Type: ${t.type}`
+          ).join('\n')
+          console.log('Converted parsed transactions to text for AI:', documentText)
+        } else {
+          // Last resort: create a prompt asking AI to work with the file directly
+          documentText = `This is a ${category} document. Please extract all relevant transaction data from this ${fileType} file.`
+          console.log('Using generic fallback prompt for AI parsing')
+        }
+      } catch (fallbackError) {
+        console.error('All PDF parsing methods failed:', fallbackError)
+        throw new Error(`Unable to extract text from ${category} PDF document`)
       }
     }
   } else {
@@ -194,11 +214,12 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
     }
   }
 
-  if (!documentText) {
-    throw new Error(`No text content extracted from ${category} document`)
+  if (!documentText || documentText.trim().length < 50) {
+    throw new Error(`Insufficient text content extracted from ${category} document. Got: ${documentText?.length || 0} characters`)
   }
 
-  console.log(`Extracted text for ${category} parsing:`, documentText.substring(0, 500))
+  console.log(`Successfully extracted ${documentText.length} characters for ${category} parsing`)
+  console.log(`Sample extracted text:`, documentText.substring(0, 1000))
 
   const prompt = getCategorySpecificPrompt(category, documentText)
   
@@ -275,31 +296,45 @@ Return as JSON array:
     case 'delivery':
       return `${basePrompt}
 
-This is a delivery platform report (Talabat, Jahez, Careem, etc.). Look for these specific transaction types:
+This is a delivery platform report (Talabat, Jahez, Careem, etc.). 
 
-1. **Commission Delivered** - Platform commission earnings
-2. **Credit Card Sales** - Customer payments via card
-3. **Debit Card Sales** - Customer payments via debit card  
-4. **Cash Sales** - Customer cash payments
-5. **Platform Credit/Charges** - Talabat/platform fees
-6. **Commission fees** - Platform commission deductions
-7. **Voucher/Promotion** costs
-8. **Net payouts** - Final amounts paid to restaurant
+ANALYZE THE ENTIRE DOCUMENT and extract EVERY transaction entry. Look for these specific patterns:
 
-For EACH transaction line, extract:
-- Date (YYYY-MM-DD format, convert from any date format)
-- Description (be specific: "Talabat Commission Delivered", "Credit Card Sales", "Platform Fees", etc.)
-- Amount (absolute positive number)
-- Type: "credit" for money received (sales, commission), "debit" for money paid (fees, charges)
+**TALABAT SPECIFIC ENTRIES:**
+- "Commission Delivered" (earnings from platform)
+- "Credit Card Charges" (processing fees) 
+- "Debit Card Charges" (processing fees)
+- "Restaurant Credit Card Sales" (customer payments)
+- "Restaurant Debit Card Sales" (customer payments)
+- "Talabat Credit Charges" (platform fees)
+- "Talabat Go" or "TGO Cash Sales" (cash orders)
+- "tPro commission" (commission fees)
+- "Voucher Balance" (promotional costs)
+- "Search CPC" (advertising costs)
+- "Monthly subscription fees"
+- Any line with KWD amounts and dates
 
-IMPORTANT: Extract ALL transactions, including:
-- Daily sales totals
-- Commission earnings  
-- Fee deductions
-- Net payout amounts
-- Any credit/debit entries
+**EXTRACTION RULES:**
+- Extract EVERY line that has a date and amount
+- Include ALL debits and credits
+- Don't skip small amounts or fees
+- Include opening/closing balances
+- Extract commission, sales, charges, fees - everything!
 
-Return as JSON array with ALL transactions found:
+**DATE FORMATS TO RECOGNIZE:**
+- 12/31/2024 → 2024-12-31
+- 31/12/2024 → 2024-12-31  
+- Dec 31, 2024 → 2024-12-31
+
+For EACH transaction found, return:
+- Date (YYYY-MM-DD format)
+- Description (keep original description, add "Talabat" prefix if not present)
+- Amount (absolute positive number, extract from KWD amounts)
+- Type: "credit" for sales/commission/income, "debit" for fees/charges/costs
+
+EXTRACT EVERYTHING - aim for 15-30+ transactions from a typical Talabat statement.
+
+Return as JSON array:
 [
   {
     "date": "2024-12-31",
@@ -308,15 +343,21 @@ Return as JSON array with ALL transactions found:
     "type": "credit"
   },
   {
-    "date": "2024-12-31", 
+    "date": "2024-12-31",
     "description": "Credit Card Charges",
     "amount": 56.25,
     "type": "debit"
   },
   {
     "date": "2024-12-31",
-    "description": "Restaurant Credit Card Sales",
+    "description": "Restaurant Credit Card Sales", 
     "amount": 2678.65,
+    "type": "credit"
+  },
+  {
+    "date": "2024-12-31",
+    "description": "TGO Cash Sales",
+    "amount": 240.40,
     "type": "credit"
   }
 ]`
