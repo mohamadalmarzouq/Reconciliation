@@ -906,14 +906,16 @@ function validateAndParseAIResponse(responseText: string, category: string): Tra
     
     // Validate and convert each transaction
     let id = 1
-    const validatedTransactions = parsed.map((tx: any) => {
+    const validatedTransactions: Transaction[] = []
+    
+    for (const tx of parsed) {
       // Check required keys
       if (!tx.date || !tx.description || tx.amount === undefined) {
         console.warn('Invalid transaction object:', tx)
-        return null
+        continue
       }
       
-      return {
+      validatedTransactions.push({
         id: `${category}-${id++}`,
         date: tx.date,
         description: tx.description,
@@ -921,8 +923,8 @@ function validateAndParseAIResponse(responseText: string, category: string): Tra
         type: tx.type === 'debit' ? 'debit' : 'credit',
         isMatched: false,
         status: 'pending'
-      }
-    }).filter(Boolean) // Remove null entries
+      })
+    }
     
     console.log(`Validated ${validatedTransactions.length} transactions for ${category}`)
     return validatedTransactions
