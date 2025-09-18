@@ -8,9 +8,9 @@ export default function Navbar() {
 
   const navItems = [
     { href: '/', label: 'Home', icon: '🏠' },
-    { href: '/upload', label: 'Upload', icon: '📤' },
-    { href: '/review', label: 'Review', icon: '📊' },
-    { href: '/export', label: 'Export', icon: '📄' },
+    { href: '/sync', label: 'Sync Mode', icon: '🔗' },
+    { href: '/manual', label: 'Manual Mode', icon: '📄' },
+    { href: '/export', label: 'Export', icon: '📊' },
   ]
 
   return (

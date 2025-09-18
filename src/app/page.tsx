@@ -7,16 +7,83 @@ export default function Home() {
           <h1 className="text-5xl font-bold text-gray-900 mb-6">
             ReconcileAI
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            AI-Powered Bank Reconciliation Platform. Automate your financial reconciliation 
-            with intelligent matching, smart suggestions, and seamless accounting integrations.
+          <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto">
+            AI-Powered Bank Reconciliation Platform. Choose your reconciliation method 
+            and let AI handle the complex matching with intelligent suggestions.
           </p>
-          <div className="flex gap-4 justify-center">
-            <a href="/upload" className="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-              Get Started
+        </div>
+
+        {/* Method Selection Cards */}
+        <div className="grid md:grid-cols-2 gap-8 mb-16 max-w-5xl mx-auto">
+          {/* Sync Mode Card */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-shadow">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
+                🔗
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Sync Mode</h2>
+              <p className="text-gray-600 mb-6">
+                Connect to your accounting software for real-time reconciliation
+              </p>
+            </div>
+            
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Real-time data sync</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Xero & Zoho Books integration</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Live invoice & contact matching</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Automated workflows</span>
+              </div>
+            </div>
+            
+            <a href="/sync" className="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors block text-center">
+              🚀 Start Sync Mode
             </a>
-            <a href="/review" className="bg-gray-200 text-gray-900 px-8 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors">
-              View Demo
+          </div>
+
+          {/* Manual Mode Card */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 hover:shadow-2xl transition-shadow">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-purple-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
+                📄
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Manual Mode</h2>
+              <p className="text-gray-600 mb-6">
+                Upload documents and reconcile with category-specific intelligence
+              </p>
+            </div>
+            
+            <div className="space-y-3 mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Document-to-document matching</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Sales, Expense, POS reports</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Category-specific AI prompts</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-sm">✓</div>
+                <span className="text-gray-700">Offline reconciliation</span>
+              </div>
+            </div>
+            
+            <a href="/manual" className="w-full bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors block text-center">
+              📋 Start Manual Mode
             </a>
           </div>
         </div>
