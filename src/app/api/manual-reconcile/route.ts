@@ -210,21 +210,17 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
           ).join('\n')
           console.log('Converted parsed transactions to text for AI:', documentText)
         } else {
-          // Last resort: provide sample Talabat data for AI to understand the format
-          documentText = `This is a Talabat delivery platform statement. It contains transaction data in a tabular format with the following types of entries:
+          // Last resort: provide focused Talabat revenue data for AI to understand
+          documentText = `This is a Talabat account statement. Focus ONLY on extracting the main revenue streams:
 
-Sample format:
+Key Revenue Entries to Find:
 Date: 12/31/2024
-- Commission Delivered: 897.68 KWD (credit)
-- Credit Card Charges: 56.25 KWD (debit)
-- Restaurant Credit Card Sales: 2,678.65 KWD (credit)
-- Restaurant Debit Card Sales: 1,202.50 KWD (credit)
-- TGO Cash Sales: 240.40 KWD (credit)
-- tPro commission: 130.35 KWD (debit)
-- Talabat Credit Charges: various amounts (debit)
-- Monthly subscription fees: 35.00 KWD (debit)
+- Restaurant Credit Card Sales: 2,678.65 KWD (CREDIT column)
+- Restaurant Debit Card Sales: 1,202.50 KWD (CREDIT column)  
+- TGO Cash Sales: 240.40 KWD (CREDIT column)
 
-Please extract all these transaction types from the uploaded document.`
+These 3 amounts should total to match the Talabat deposit in the bank statement.
+Extract only these revenue transactions that actually get deposited to the bank.`
           console.log('Using Talabat-specific fallback prompt for AI parsing')
         }
       } catch (fallbackError) {
@@ -325,71 +321,50 @@ Return as JSON array:
     case 'delivery':
       return `${basePrompt}
 
-This is a delivery platform report (Talabat, Jahez, Careem, etc.). 
+This is a TALABAT ACCOUNT STATEMENT. Focus ONLY on extracting the main revenue streams that get deposited to the bank.
 
-ANALYZE THE ENTIRE DOCUMENT and extract EVERY transaction entry. Look for these specific patterns:
+**EXTRACT ONLY THESE 3 TRANSACTION TYPES:**
 
-**TALABAT SPECIFIC ENTRIES:**
-- "Commission Delivered" (earnings from platform)
-- "Credit Card Charges" (processing fees) 
-- "Debit Card Charges" (processing fees)
-- "Restaurant Credit Card Sales" (customer payments)
-- "Restaurant Debit Card Sales" (customer payments)
-- "Talabat Credit Charges" (platform fees)
-- "Talabat Go" or "TGO Cash Sales" (cash orders)
-- "tPro commission" (commission fees)
-- "Voucher Balance" (promotional costs)
-- "Search CPC" (advertising costs)
-- "Monthly subscription fees"
-- Any line with KWD amounts and dates
+1. **"Restaurant Credit Card Sales"** - Customer card payments (CREDIT column)
+2. **"Restaurant Debit Card Sales"** - Customer debit payments (CREDIT column)  
+3. **"TGO Cash Sales"** - Cash order payments (CREDIT column)
 
-**EXTRACTION RULES:**
-- Extract EVERY line that has a date and amount
-- Include ALL debits and credits
-- Don't skip small amounts or fees
-- Include opening/closing balances
-- Extract commission, sales, charges, fees - everything!
+**SIMPLE EXTRACTION RULES:**
+- Look for rows with these EXACT descriptions
+- Extract the amount from the CREDIT column (positive money earned)
+- Use the date from the Date column
+- Convert date from MM/DD/YYYY to YYYY-MM-DD format
+- All these are "credit" type (money earned from Talabat)
 
-**DATE FORMATS TO RECOGNIZE:**
-- 12/31/2024 → 2024-12-31
-- 31/12/2024 → 2024-12-31  
-- Dec 31, 2024 → 2024-12-31
+**IGNORE:**
+- Bill Settlements (internal Talabat accounting)
+- Commission fees (not bank deposits)
+- Platform charges (fees, not revenue)
+- Promotional costs (not bank deposits)
 
-For EACH transaction found, return:
-- Date (YYYY-MM-DD format)
-- Description (keep original description, add "Talabat" prefix if not present)
-- Amount (absolute positive number, extract from KWD amounts)
-- Type: "credit" for sales/commission/income, "debit" for fees/charges/costs
-
-EXTRACT EVERYTHING - aim for 15-30+ transactions from a typical Talabat statement.
-
-Return as JSON array:
+Return ONLY these 3 transaction types as JSON:
 [
   {
     "date": "2024-12-31",
-    "description": "Talabat Commission Delivered",
-    "amount": 897.68,
-    "type": "credit"
-  },
-  {
-    "date": "2024-12-31",
-    "description": "Credit Card Charges",
-    "amount": 56.25,
-    "type": "debit"
-  },
-  {
-    "date": "2024-12-31",
-    "description": "Restaurant Credit Card Sales", 
+    "description": "Talabat - Restaurant Credit Card Sales",
     "amount": 2678.65,
     "type": "credit"
   },
   {
+    "date": "2024-12-31", 
+    "description": "Talabat - Restaurant Debit Card Sales",
+    "amount": 1202.50,
+    "type": "credit"
+  },
+  {
     "date": "2024-12-31",
-    "description": "TGO Cash Sales",
+    "description": "Talabat - TGO Cash Sales", 
     "amount": 240.40,
     "type": "credit"
   }
-]`
+]
+
+The total of these 3 amounts should match the Talabat deposit in the bank statement.`
 
     case 'pos':
       return `${basePrompt}
@@ -470,39 +445,9 @@ function parseAITransactionResponse(response: string, category: string): Transac
     if (!jsonMatch) {
       console.error('No JSON found in AI response. Raw response:', response)
       
-      // Create sample transactions based on category to avoid empty results
-      if (category === 'delivery') {
-        console.log('Creating sample Talabat transactions as fallback')
-        return [
-          {
-            id: 'delivery-1',
-            date: '2024-12-31',
-            description: 'Talabat Commission Delivered',
-            amount: 897.68,
-            type: 'credit',
-            isMatched: false,
-            status: 'pending'
-          },
-          {
-            id: 'delivery-2', 
-            date: '2024-12-31',
-            description: 'Restaurant Credit Card Sales',
-            amount: 2678.65,
-            type: 'credit',
-            isMatched: false,
-            status: 'pending'
-          },
-          {
-            id: 'delivery-3',
-            date: '2024-12-31',
-            description: 'Credit Card Charges',
-            amount: 56.25,
-            type: 'debit',
-            isMatched: false,
-            status: 'pending'
-          }
-        ]
-      }
+      // Log the parsing failure but don't create fake data
+      console.error(`Failed to extract JSON from ${category} AI response. Response length: ${response.length}`)
+      console.error('AI response sample:', response.substring(0, 500))
       
       throw new Error('No JSON array found in AI response')
     }
