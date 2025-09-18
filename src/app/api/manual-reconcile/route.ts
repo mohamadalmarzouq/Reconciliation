@@ -115,40 +115,24 @@ export async function POST(request: NextRequest) {
 // Category-specific file parsing with tailored AI prompts
 async function parseCategorySpecificFile(filePath: string, fileType: string, category: string): Promise<Transaction[]> {
   try {
-    // First, get the raw text/data from the file
+    // For delivery platforms and other specialized formats, always use AI parsing
+    if (category === 'delivery' || category === 'pos' || category === 'sales') {
+      console.log(`Using AI parsing for ${category} category`)
+      return await parseWithCategoryAI(filePath, fileType, category)
+    }
+
+    // For other categories, try structured parsing first
     const rawTransactions = await parseFile(filePath, fileType)
     
-    // If we got structured data, use it directly
-    if (rawTransactions.length > 0) {
+    // If we got good structured data, use it
+    if (rawTransactions.length > 3) {
+      console.log(`Using structured parsing for ${category}, found ${rawTransactions.length} transactions`)
       return rawTransactions
     }
 
     // Otherwise, use category-specific AI parsing
-    const prompt = getCategorySpecificPrompt(category, filePath)
-    
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an expert financial document parser. Extract transaction data based on the specific document category provided.`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.1,
-      max_tokens: 2000,
-    })
-
-    const response = completion.choices[0]?.message?.content
-    if (!response) {
-      throw new Error('No response from OpenAI for category-specific parsing')
-    }
-
-    // Parse the AI response into transactions
-    return parseAITransactionResponse(response, category)
+    console.log(`Falling back to AI parsing for ${category}`)
+    return await parseWithCategoryAI(filePath, fileType, category)
 
   } catch (error) {
     console.error(`Error parsing ${category} file:`, error)
@@ -156,9 +140,98 @@ async function parseCategorySpecificFile(filePath: string, fileType: string, cat
   }
 }
 
+// AI-based parsing for category-specific documents
+async function parseWithCategoryAI(filePath: string, fileType: string, category: string): Promise<Transaction[]> {
+  // Get raw text from the document first
+  let documentText = ''
+  
+  if (fileType.includes('pdf')) {
+    // For PDF files, we need to extract text first
+    try {
+      // Use AWS Textract to get the raw text
+      const { TextractClient, AnalyzeDocumentCommand } = await import('@aws-sdk/client-textract')
+      const fs = await import('fs')
+      
+      const textractClient = new TextractClient({
+        region: process.env.AWS_REGION || 'us-east-1',
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        },
+      })
+
+      const fileBuffer = fs.readFileSync(filePath)
+      
+      const command = new AnalyzeDocumentCommand({
+        Document: { Bytes: fileBuffer },
+        FeatureTypes: ['TABLES', 'FORMS']
+      })
+
+      const result = await textractClient.send(command)
+      
+      if (result.Blocks) {
+        documentText = result.Blocks
+          .filter(block => block.BlockType === 'LINE')
+          .map(block => block.Text)
+          .join('\n')
+      }
+    } catch (textractError) {
+      console.error('Textract failed for category parsing:', textractError)
+      // Fallback to basic parsing
+      const rawTransactions = await parseFile(filePath, fileType)
+      if (rawTransactions.length > 0) {
+        return rawTransactions
+      }
+    }
+  } else {
+    // For CSV/XLSX, read the raw content
+    const rawTransactions = await parseFile(filePath, fileType)
+    if (rawTransactions.length > 0) {
+      // Convert transactions back to text for AI processing
+      documentText = rawTransactions.map(t => 
+        `${t.date}, ${t.description}, ${t.amount}, ${t.type}`
+      ).join('\n')
+    }
+  }
+
+  if (!documentText) {
+    throw new Error(`No text content extracted from ${category} document`)
+  }
+
+  console.log(`Extracted text for ${category} parsing:`, documentText.substring(0, 500))
+
+  const prompt = getCategorySpecificPrompt(category, documentText)
+  
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: `You are an expert at parsing ${category} documents. Extract transaction data with high accuracy.`
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.1,
+    max_tokens: 3000,
+  })
+
+  const response = completion.choices[0]?.message?.content
+  if (!response) {
+    throw new Error(`No response from OpenAI for ${category} parsing`)
+  }
+
+  console.log(`AI parsing response for ${category}:`, response)
+
+  // Parse the AI response into transactions
+  return parseAITransactionResponse(response, category)
+}
+
 // Get category-specific AI prompts
-function getCategorySpecificPrompt(category: string, filePath: string): string {
-  const basePrompt = `Analyze this ${category} document and extract transaction data.`
+function getCategorySpecificPrompt(category: string, documentText: string): string {
+  const basePrompt = `Analyze this ${category} document and extract transaction data from the following text:\n\n${documentText}\n\n`
   
   switch (category) {
     case 'sales':
@@ -202,18 +275,48 @@ Return as JSON array:
     case 'delivery':
       return `${basePrompt}
 
-This is a delivery platform report (Talabat, Jahez, etc.). Extract payout information:
-- Date (YYYY-MM-DD format)
-- Description (should include platform name and order details)
-- Amount (net payout amount after commissions/fees)
-- Type should be "credit" (money received)
+This is a delivery platform report (Talabat, Jahez, Careem, etc.). Look for these specific transaction types:
 
-Return as JSON array:
+1. **Commission Delivered** - Platform commission earnings
+2. **Credit Card Sales** - Customer payments via card
+3. **Debit Card Sales** - Customer payments via debit card  
+4. **Cash Sales** - Customer cash payments
+5. **Platform Credit/Charges** - Talabat/platform fees
+6. **Commission fees** - Platform commission deductions
+7. **Voucher/Promotion** costs
+8. **Net payouts** - Final amounts paid to restaurant
+
+For EACH transaction line, extract:
+- Date (YYYY-MM-DD format, convert from any date format)
+- Description (be specific: "Talabat Commission Delivered", "Credit Card Sales", "Platform Fees", etc.)
+- Amount (absolute positive number)
+- Type: "credit" for money received (sales, commission), "debit" for money paid (fees, charges)
+
+IMPORTANT: Extract ALL transactions, including:
+- Daily sales totals
+- Commission earnings  
+- Fee deductions
+- Net payout amounts
+- Any credit/debit entries
+
+Return as JSON array with ALL transactions found:
 [
   {
-    "date": "2024-05-15",
-    "description": "Talabat payout - 15 orders (Commission: 15%, Net: $85)",
-    "amount": 85.00,
+    "date": "2024-12-31",
+    "description": "Talabat Commission Delivered",
+    "amount": 897.68,
+    "type": "credit"
+  },
+  {
+    "date": "2024-12-31", 
+    "description": "Credit Card Charges",
+    "amount": 56.25,
+    "type": "debit"
+  },
+  {
+    "date": "2024-12-31",
+    "description": "Restaurant Credit Card Sales",
+    "amount": 2678.65,
     "type": "credit"
   }
 ]`
