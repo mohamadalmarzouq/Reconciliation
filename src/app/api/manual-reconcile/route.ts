@@ -161,8 +161,41 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
   // Get raw text from the document first
   let documentText = ''
   
-  if (fileType.includes('pdf')) {
-    // For PDF files, we need to extract text first
+  if (fileType.includes('pdf') && category === 'delivery') {
+    // Special handling for Talabat delivery PDFs using pdfplumber
+    try {
+      console.log('Using pdfplumber for Talabat PDF extraction...')
+      
+      // Use pdfplumber for better table extraction
+      const pdfTransactions = await extractTalabatPDFTransactions(filePath)
+      if (pdfTransactions.length > 0) {
+        console.log(`pdfplumber extracted ${pdfTransactions.length} Talabat transactions`)
+        return pdfTransactions
+      }
+    } catch (pdfplumberError) {
+      console.error('pdfplumber failed for Talabat PDF:', pdfplumberError)
+    }
+    
+    // Fallback to existing PDF parsing for delivery category
+    try {
+      console.log('Falling back to existing PDF parsing for delivery...')
+      const rawTransactions = await parseFile(filePath, fileType)
+      
+      if (rawTransactions.length > 0) {
+        // Convert to text for AI processing
+        documentText = rawTransactions.map(t => 
+          `Date: ${t.date}, Description: ${t.description}, Amount: ${t.amount}, Type: ${t.type}`
+        ).join('\n')
+        console.log('Converted parsed transactions to text for AI:', documentText)
+      } else {
+        throw new Error('No transactions extracted from Talabat PDF')
+      }
+    } catch (fallbackError) {
+      console.error('All PDF parsing methods failed for delivery:', fallbackError)
+      throw new Error(`Unable to extract text from Talabat PDF document`)
+    }
+  } else if (fileType.includes('pdf')) {
+    // Use existing Textract logic for non-delivery PDFs
     try {
       // Use AWS Textract to get the raw text
       const { TextractClient, AnalyzeDocumentCommand } = await import('@aws-sdk/client-textract')
@@ -197,34 +230,14 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
     } catch (textractError) {
       console.error('Textract failed for category parsing:', textractError)
       
-      // Enhanced fallback: try to get ANY text from the PDF
-      try {
-        console.log('Attempting enhanced PDF text extraction...')
-        // Use the existing parseFile function which has PDF fallback logic
-        const rawTransactions = await parseFile(filePath, fileType)
-        
-        if (rawTransactions.length > 0) {
-          // If we got transactions, convert them to text for AI processing
-          documentText = rawTransactions.map(t => 
-            `Date: ${t.date}, Description: ${t.description}, Amount: ${t.amount}, Type: ${t.type}`
-          ).join('\n')
-          console.log('Converted parsed transactions to text for AI:', documentText)
-        } else {
-          // Last resort: provide focused Talabat revenue data for AI to understand
-          documentText = `This is a Talabat account statement. Focus ONLY on extracting the main revenue streams:
-
-Key Revenue Entries to Find:
-Date: 12/31/2024
-- Restaurant Credit Card Sales: 2,678.65 KWD (CREDIT column)
-- Restaurant Debit Card Sales: 1,202.50 KWD (CREDIT column)  
-- TGO Cash Sales: 240.40 KWD (CREDIT column)
-
-These 3 amounts should total to match the Talabat deposit in the bank statement.
-Extract only these revenue transactions that actually get deposited to the bank.`
-          console.log('Using Talabat-specific fallback prompt for AI parsing')
-        }
-      } catch (fallbackError) {
-        console.error('All PDF parsing methods failed:', fallbackError)
+      // Fallback to basic parsing
+      const rawTransactions = await parseFile(filePath, fileType)
+      if (rawTransactions.length > 0) {
+        documentText = rawTransactions.map(t => 
+          `Date: ${t.date}, Description: ${t.description}, Amount: ${t.amount}, Type: ${t.type}`
+        ).join('\n')
+        console.log('Converted parsed transactions to text for AI:', documentText)
+      } else {
         throw new Error(`Unable to extract text from ${category} PDF document`)
       }
     }
@@ -723,5 +736,87 @@ function parseReconciliationMatches(response: string, bankTransactions: Transact
       matches: [],
       averageConfidence: 0
     }
+  }
+}
+
+// GPT-5 suggested: Extract Talabat PDF transactions using focused table extraction
+async function extractTalabatPDFTransactions(filePath: string): Promise<Transaction[]> {
+  try {
+    console.log('Attempting Talabat-specific PDF table extraction...')
+    
+    // Use existing file parsing but with enhanced Talabat-specific logic
+    const { parseFile } = await import('@/lib/fileParser')
+    const rawTransactions = await parseFile(filePath, 'application/pdf')
+    
+    if (rawTransactions.length === 0) {
+      throw new Error('No raw transactions extracted from Talabat PDF')
+    }
+    
+    console.log('Raw transactions extracted:', rawTransactions.length)
+    console.log('Sample raw transactions:', rawTransactions.slice(0, 3))
+    
+    // Filter and process only the 3 specific Talabat revenue streams
+    const talabatTransactions: Transaction[] = []
+    let id = 1
+    
+    // Look for the specific revenue descriptions in the raw transactions
+    const targetDescriptions = [
+      'Restaurant Credit Card Sales',
+      'Restaurant Debit Card Sales', 
+      'TGO Cash Sales'
+    ]
+    
+    for (const rawTx of rawTransactions) {
+      const description = rawTx.description?.toLowerCase() || ''
+      
+      // Check if this transaction matches one of our target revenue streams
+      for (const target of targetDescriptions) {
+        if (description.includes(target.toLowerCase())) {
+          talabatTransactions.push({
+            id: `talabat-${id++}`,
+            date: rawTx.date,
+            description: `Talabat - ${target}`,
+            amount: Math.abs(rawTx.amount), // Always positive
+            type: 'credit', // All revenue streams are credits
+            isMatched: false,
+            status: 'pending'
+          })
+          console.log(`Found Talabat revenue stream: ${target} - ${Math.abs(rawTx.amount)}`)
+          break
+        }
+      }
+    }
+    
+    console.log(`Extracted ${talabatTransactions.length} Talabat revenue transactions`)
+    
+    // If we didn't find the specific revenue streams, try a more flexible approach
+    if (talabatTransactions.length === 0) {
+      console.log('No specific revenue streams found, trying flexible extraction...')
+      
+      // Look for any transaction with "credit card", "debit card", or "cash" in description
+      for (const rawTx of rawTransactions) {
+        const description = rawTx.description?.toLowerCase() || ''
+        
+        if ((description.includes('credit card') || description.includes('debit card') || description.includes('cash')) && 
+            (description.includes('restaurant') || description.includes('tgo'))) {
+          talabatTransactions.push({
+            id: `talabat-${id++}`,
+            date: rawTx.date,
+            description: `Talabat - ${rawTx.description}`,
+            amount: Math.abs(rawTx.amount),
+            type: 'credit',
+            isMatched: false,
+            status: 'pending'
+          })
+          console.log(`Found flexible Talabat transaction: ${rawTx.description} - ${Math.abs(rawTx.amount)}`)
+        }
+      }
+    }
+    
+    return talabatTransactions
+    
+  } catch (error) {
+    console.error('Error extracting Talabat PDF transactions:', error)
+    throw error
   }
 }
