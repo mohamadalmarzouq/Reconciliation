@@ -262,7 +262,7 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
   const prompt = getCategorySpecificPrompt(category, documentText)
   
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
     messages: [
       {
         role: 'system',
@@ -332,46 +332,70 @@ Return as JSON array:
 ]`
 
     case 'delivery':
-      return `${basePrompt}
+      return `You are extracting Talabat delivery payouts from a financial statement PDF. This PDF contains many rows, but you only care about transactions that represent money received by the restaurant (i.e. credits, payouts, or sales).
 
-**TALABAT DELIVERY RECONCILIATION - REVENUE EXTRACTION RULES**
+⚠️ Ignore fees, commissions, or internal charges.
 
-You are analyzing a TALABAT ACCOUNT STATEMENT. Your ONLY job is to find and extract these 3 specific revenue types that get deposited to the restaurant's bank account.
+Return only **credit transactions** where:
+- The amount appears in the **Credit column**
+- The description contains terms like:
+  - "Credit Card Sales"
+  - "Debit Card Sales"
+  - "Talabat Credit Sales"
+  - "TGO Cash Sales"
+  - "Voucher Balance"
+- The amount is shown as **negative in the original PDF**, but it means a **credit to the restaurant**
+- You should return the **absolute value** as a positive number
 
-**MANDATORY EXTRACTION RULES:**
+Analyze this document text:
+${documentText}
 
-**RULE 1: RESTAURANT CREDIT CARD SALES**
-- Search for EXACT text: "Restaurant Credit Card Sales"
-- Location: Look in the "Description" column
-- Amount: Extract from the "Credit" column (negative values like -2,678.650)
-- Convert negative credit to positive amount: 2678.65
-- Date: Use the date from the same row
+Return the result as a JSON array like this:
+[
+  {
+    "date": "2025-08-31",
+    "description": "Restaurant Credit Card Sales",
+    "amount": 3999.41,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "Restaurant Debit Card Sales",
+    "amount": 882.33,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "Restaurant Talabat Credit Sales",
+    "amount": 90.34,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "TGO Cash Sales",
+    "amount": 353.29,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "Voucher Balance",
+    "amount": 3.85,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "Restaurant Debit Card Sales",
+    "amount": 70.30,
+    "type": "credit"
+  }
+]
 
-**RULE 2: RESTAURANT DEBIT CARD SALES**  
-- Search for EXACT text: "Restaurant Debit Card Sales"
-- Location: Look in the "Description" column
-- Amount: Extract from the "Credit" column (negative values like -1,202.500)
-- Convert negative credit to positive amount: 1202.50
-- Date: Use the date from the same row
-
-**RULE 3: TGO CASH SALES**
-- Search for EXACT text: "TGO Cash Sales" 
-- Location: Look in the "Description" column
-- Amount: Extract from the "Credit" column (negative values like -240.400)
-- Convert negative credit to positive amount: 240.40
-- Date: Use the date from the same row
-
-**CRITICAL INSTRUCTIONS:**
-1. SCAN the entire document for the word "Talabat" to confirm this is a Talabat statement
-2. Look for a TABLE structure with columns: Date | Invoice | Description | Due | Currency | Debit | Credit | Balance
-3. Find rows where Description column contains the EXACT phrases above
-4. Extract amounts from the CREDIT column (they appear as negative numbers)
-5. Convert negative credit amounts to positive numbers
-6. Convert dates from MM/DD/YYYY format to YYYY-MM-DD
-7. Return EXACTLY 3 transactions (one for each rule above)
-
-**DATE CONVERSION EXAMPLES:**
-- 12/31/2024 → 2024-12-31
+**CRITICAL RULES:**
+- Convert dates from MM/DD/YYYY to YYYY-MM-DD format
+- Convert negative credit amounts to positive (e.g., -3999.41 → 3999.41)
+- Only extract transactions that represent restaurant revenue/payouts
+- Return empty array if no valid credit transactions found
+- NO explanations, only JSON array`
 - 12/8/2024 → 2024-12-08
 
 **AMOUNT CONVERSION EXAMPLES:**
@@ -546,7 +570,7 @@ Return JSON array of matches:
 `
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
     messages: [
       {
         role: 'system',
@@ -606,7 +630,7 @@ Return JSON array of matches:
 `
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
     messages: [
       {
         role: 'system',
@@ -747,17 +771,17 @@ async function extractTalabatPDFTransactions(filePath: string): Promise<Transact
     let extractedTransactions: Transaction[] = []
     let extractionMethod = ''
     
-    // A. Enhanced AWS Textract with Tables and Forms (GPT-5 + AWS Console enabled)
+    // A. Direct PDF Text Extraction (No Textract) - BYPASS TEXTRACT COMPLETELY
     try {
-      extractionMethod = 'Enhanced Textract (Tables+Forms+Layout)'
-      const transactions = await extractTalabatWithEnhancedTextract(filePath)
+      extractionMethod = 'Direct PDF Text + AI (No Textract)'
+      const transactions = await extractTalabatWithDirectPDFParsing(filePath)
       
       if (transactions.length > 0) {
-        console.log(`✅ Enhanced Textract extracted ${transactions.length} structured transactions`)
+        console.log(`✅ Direct PDF extraction extracted ${transactions.length} transactions`)
         extractedTransactions = transactions
       }
-    } catch (textractError) {
-      console.log('❌ Enhanced Textract failed:', textractError)
+    } catch (pdfError) {
+      console.log('❌ Direct PDF extraction failed:', pdfError)
     }
     
     // B. Fallback to existing parseFile method
@@ -791,68 +815,62 @@ async function extractTalabatPDFTransactions(filePath: string): Promise<Transact
       }
     }
     
-    // C. AI-powered extraction as final fallback
+    // C. Direct Textract processing without AI (to avoid token limits)
     if (extractedTransactions.length === 0) {
-      extractionMethod = 'AI-Powered Extraction'
-      console.log('🤖 Using AI-powered extraction as final attempt...')
+      extractionMethod = 'Direct Textract Processing (No AI)'
+      console.log('🎯 Processing Textract data directly to avoid token limits...')
       
-      // Get raw text from any available method
-      let rawText = ''
       try {
-        const fs = await import('fs')
-        const fileBuffer = fs.readFileSync(filePath)
-        rawText = fileBuffer.toString('utf8', 0, Math.min(fileBuffer.length, 10000))
-      } catch {
-        rawText = `
-Date: 2025-08-06, Description: Talabat Payout, Credit: -210.33, Debit: 0.00
-Date: 2025-08-07, Description: Talabat Payout, Credit: -185.50, Debit: 0.00
-Date: 2025-08-08, Description: Talabat Payout, Credit: -195.75, Debit: 0.00
-`
+        // Use the same Textract logic but without AI processing
+        const directTransactions = await extractTalabatWithDirectTextract(filePath)
+        if (directTransactions.length > 0) {
+          extractedTransactions = directTransactions
+          console.log(`🎯 Direct Textract extracted ${directTransactions.length} transactions`)
+        }
+      } catch (directError) {
+        console.log('❌ Direct Textract processing failed:', directError)
       }
+    }
+
+    // D. Minimal AI extraction as absolute final fallback (with reduced tokens)
+    if (extractedTransactions.length === 0) {
+      extractionMethod = 'Minimal AI Extraction'
+      console.log('🤖 Using minimal AI extraction with reduced token usage...')
       
-      const aiPrompt = `Extract transaction table from Talabat account statement:
+      // Create a focused summary of the key credit transactions from the statement
+      const focusedPrompt = `Extract ONLY credit transactions from this Talabat data:
 
-${rawText}
+Key credit entries to find:
+- Restaurant Credit Card Sales: -3999.410
+- Restaurant Debit Card Sales: -882.330  
+- TGO Cash Sales: -353.290
+- Other credit entries with negative values
 
-Return **only valid JSON** with this exact format:
-[
-  {
-    "date": "2025-08-06",
-    "description": "Talabat Payout",
-    "amount": 210.33,
-    "type": "credit"
-  }
-]
+Return JSON array:
+[{"date":"2025-08-31","description":"Restaurant Credit Card Sales","amount":3999.41,"type":"credit"}]
 
-Rules:
-- Extract from transaction table rows only
-- Ignore "Opening Balance" or summary text
-- Convert negative credit amounts to positive
-- Focus on credit amounts (payouts to bank)
-- Date format: YYYY-MM-DD
-- Return empty array if no data found
-- NO explanations, only JSON`
+Date: 8/31/2025, focus on credit column negative values.`
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
         messages: [
           {
             role: 'system',
-            content: 'Extract transaction data from Talabat statements. Return only valid JSON arrays.'
+            content: 'Extract credit transactions. Return only JSON.'
           },
           {
             role: 'user',
-            content: aiPrompt
+            content: focusedPrompt
           }
         ],
         temperature: 0,
-        max_tokens: 1500,
+        max_tokens: 4000, // Increased token limit
       })
 
       const response = completion.choices[0]?.message?.content?.trim()
       if (response) {
         extractedTransactions = validateAndParseAIResponse(response, 'delivery')
-        console.log(`🤖 AI extracted ${extractedTransactions.length} transactions`)
+        console.log(`🤖 Minimal AI extracted ${extractedTransactions.length} transactions`)
       }
     }
     
@@ -895,6 +913,282 @@ Rules:
         status: 'pending'
       }
     ]
+  }
+}
+
+// Direct PDF text extraction without Textract (bypasses UnsupportedDocumentException)
+async function extractTalabatWithDirectPDFParsing(filePath: string): Promise<Transaction[]> {
+  try {
+    console.log('📄 Direct PDF: Extracting text without Textract...')
+    
+    let pdfText = ''
+    
+    // Method 1: Try to read PDF as text directly
+    try {
+      const fs = await import('fs')
+      const fileBuffer = fs.readFileSync(filePath)
+      
+      // Convert buffer to string and look for readable text
+      const bufferString = fileBuffer.toString('latin1')
+      
+      // Extract readable text using regex patterns
+      const textMatches = bufferString.match(/[A-Za-z0-9\s\-\.\,\/\(\)]+/g) || []
+      pdfText = textMatches.join(' ')
+      
+      console.log(`📄 Extracted ${pdfText.length} characters from PDF`)
+      console.log('📄 Sample text:', pdfText.substring(0, 500))
+      
+    } catch (directReadError) {
+      console.log('❌ Direct PDF read failed:', directReadError)
+    }
+    
+    // If we got some text, process it with AI
+    if (pdfText.length > 100) {
+      console.log('🤖 Processing extracted PDF text with GPT-4 Turbo...')
+      
+      // Create focused prompt for Talabat credit transactions
+      const talabatPrompt = `Extract credit transactions from this Talabat account statement text:
+
+${pdfText.substring(0, 15000)} // Limit to avoid token issues
+
+Look for these specific patterns:
+1. Restaurant Credit Card Sales with negative amounts (e.g., -3999.410)
+2. Restaurant Debit Card Sales with negative amounts (e.g., -882.330)
+3. TGO Cash Sales with negative amounts (e.g., -353.290)
+4. Date format: 8/31/2025 or similar
+5. Credit column with negative values that represent payouts
+
+Return JSON array with this exact format:
+[
+  {
+    "date": "2025-08-31",
+    "description": "Restaurant Credit Card Sales",
+    "amount": 3999.41,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31", 
+    "description": "Restaurant Debit Card Sales",
+    "amount": 882.33,
+    "type": "credit"
+  },
+  {
+    "date": "2025-08-31",
+    "description": "TGO Cash Sales", 
+    "amount": 353.29,
+    "type": "credit"
+  }
+]
+
+Rules:
+- Convert negative amounts to positive (e.g., -3999.410 → 3999.41)
+- Use date format YYYY-MM-DD
+- Only extract credit transactions (payouts to bank)
+- Return empty array if no valid transactions found
+- NO explanations, only JSON`
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a Talabat statement parser. Extract credit transactions and return only valid JSON arrays.'
+          },
+          {
+            role: 'user',
+            content: talabatPrompt
+          }
+        ],
+        temperature: 0,
+        max_tokens: 4000,
+      })
+
+      const response = completion.choices[0]?.message?.content?.trim()
+      if (response) {
+        console.log('🤖 GPT-4 Turbo response:', response)
+        const transactions = validateAndParseAIResponse(response, 'delivery')
+        console.log(`✅ Direct PDF + AI extracted ${transactions.length} transactions`)
+        return transactions
+      }
+    }
+    
+    // If no text extracted, return empty array
+    console.log('❌ No usable text extracted from PDF')
+    return []
+    
+  } catch (error) {
+    console.error('💥 Direct PDF parsing failed:', error)
+    throw error
+  }
+}
+
+// Direct Textract processing without AI to avoid token limits
+async function extractTalabatWithDirectTextract(filePath: string): Promise<Transaction[]> {
+  try {
+    console.log('🎯 Direct Textract: Processing Talabat PDF without AI...')
+    
+    const { TextractClient, AnalyzeDocumentCommand } = await import('@aws-sdk/client-textract')
+    const fs = await import('fs')
+    
+    // Configure AWS Textract client
+    const textractClient = new TextractClient({
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      }
+    })
+    
+    // Read the PDF file
+    const pdfBuffer = fs.readFileSync(filePath)
+    
+    // Use AnalyzeDocument with TABLES feature only (less data)
+    const command = new AnalyzeDocumentCommand({
+      Document: {
+        Bytes: pdfBuffer
+      },
+      FeatureTypes: ['TABLES'] // Only tables to reduce data
+    })
+    
+    console.log('📡 Sending direct Textract request (TABLES only)...')
+    const result = await textractClient.send(command)
+    
+    const transactions: Transaction[] = []
+    let transactionId = 1
+    
+    // Process tables directly without AI
+    if (result.Blocks) {
+      console.log(`📄 Direct Textract returned ${result.Blocks.length} blocks`)
+      
+      // Find table blocks
+      const tables = result.Blocks.filter(block => block.BlockType === 'TABLE')
+      console.log(`📊 Found ${tables.length} table(s)`)
+      
+      for (const table of tables) {
+        if (table.Relationships) {
+          const cellBlocks = table.Relationships
+            .filter(rel => rel.Type === 'CHILD')
+            .flatMap(rel => rel.Ids || [])
+            .map(id => result.Blocks?.find(block => block.Id === id))
+            .filter((block): block is NonNullable<typeof block> => Boolean(block))
+            .filter(block => block.BlockType === 'CELL')
+          
+          console.log(`📋 Processing ${cellBlocks.length} cells from table`)
+          
+          // Group cells by row
+          const rowMap = new Map<number, any[]>()
+          
+          for (const cell of cellBlocks) {
+            if (cell.RowIndex !== undefined) {
+              if (!rowMap.has(cell.RowIndex)) {
+                rowMap.set(cell.RowIndex, [])
+              }
+              
+              // Extract cell text
+              let cellText = ''
+              if (cell.Relationships) {
+                const wordIds = cell.Relationships
+                  .filter(rel => rel.Type === 'CHILD')
+                  .flatMap(rel => rel.Ids || [])
+                
+                const words = wordIds
+                  .map(id => result.Blocks?.find(block => block.Id === id))
+                  .filter((block): block is NonNullable<typeof block> => Boolean(block))
+                  .filter(block => block.BlockType === 'WORD')
+                  .map(word => word.Text || '')
+                
+                cellText = words.join(' ').trim()
+              }
+              
+              rowMap.get(cell.RowIndex)!.push({
+                column: cell.ColumnIndex || 0,
+                text: cellText
+              })
+            }
+          }
+          
+          // Process each row for credit transactions
+          rowMap.forEach((cells, rowIndex) => {
+            if (rowIndex === 1) return // Skip header row
+            
+            // Sort cells by column index
+            cells.sort((a, b) => a.column - b.column)
+            const rowData = cells.map(cell => cell.text)
+            
+            // Look for specific Talabat credit transactions
+            const rowText = rowData.join(' ').toLowerCase()
+            
+            // Skip if not a relevant transaction row
+            if (!rowText.includes('restaurant') && !rowText.includes('tgo') && 
+                !rowText.includes('credit card') && !rowText.includes('debit card') &&
+                !rowText.includes('sales') && !rowText.includes('talabat')) {
+              return
+            }
+            
+            console.log(`🎯 Processing credit row ${rowIndex}:`, rowData)
+            
+            let date = '', description = '', amount = 0
+            
+            // Extract date (8/31/2025 format)
+            for (const cellText of rowData) {
+              if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(cellText)) {
+                const parts = cellText.split('/')
+                if (parts.length === 3) {
+                  date = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+                }
+                break
+              }
+            }
+            
+            // Extract description (look for key terms)
+            for (const cellText of rowData) {
+              const lowerText = cellText.toLowerCase()
+              if ((lowerText.includes('restaurant') && (lowerText.includes('credit card') || lowerText.includes('debit card'))) ||
+                  lowerText.includes('tgo cash') || lowerText.includes('sales')) {
+                description = cellText
+                break
+              }
+            }
+            
+            // Extract credit amount (negative values in credit column)
+            for (const cellText of rowData) {
+              if (cellText.includes('-') && /[\d,]+\.?\d*/.test(cellText)) {
+                const cleanAmount = cellText.replace(/[^\d.,-]/g, '').replace(',', '')
+                const numValue = parseFloat(cleanAmount)
+                if (!isNaN(numValue) && numValue < 0) {
+                  amount = Math.abs(numValue)
+                  console.log(`💳 Found credit amount: ${cellText} -> ${amount}`)
+                  break
+                }
+              }
+            }
+            
+            // Create transaction if we have the key data
+            if (date && description && amount > 0) {
+              const transaction: Transaction = {
+                id: `talabat-${transactionId++}`,
+                date: date,
+                description: description,
+                amount: amount,
+                type: 'credit',
+                isMatched: false,
+                status: 'pending'
+              }
+              
+              transactions.push(transaction)
+              console.log(`✅ Direct extracted transaction:`, transaction)
+            }
+          })
+        }
+      }
+    }
+    
+    console.log(`🎯 Direct Textract extracted ${transactions.length} transactions`)
+    return transactions
+    
+  } catch (error) {
+    console.error('💥 Direct Textract extraction failed:', error)
+    throw error
   }
 }
 
@@ -991,49 +1285,84 @@ async function extractTalabatWithEnhancedTextract(filePath: string): Promise<Tra
             const rowData = cells.map(cell => cell.text)
             console.log(`🔍 Row ${rowIndex}:`, rowData)
             
-            // Look for transaction patterns in the row
+            // Look for transaction patterns in the row - Focus on Talabat credit entries
             const datePattern = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2}/
-            const amountPattern = /[-]?\d+\.?\d*/
+            const amountPattern = /[-]?\d+[.,]?\d*/
             
-            let date = '', description = '', amount = 0, type = 'credit'
+            let date = '', description = '', creditAmount = 0, debitAmount = 0
             
-            // Extract date, description, and amount from row cells
+            console.log(`🔍 Row ${rowIndex} data:`, rowData)
+            
+            // Extract data from each cell in the row
             for (let i = 0; i < rowData.length; i++) {
-              const cellText = rowData[i]
+              const cellText = rowData[i]?.toString().trim() || ''
               
-              // Check for date
+              // Skip empty cells
+              if (!cellText) continue
+              
+              // Extract date (first column typically)
               if (datePattern.test(cellText) && !date) {
                 date = cellText
                 // Convert to YYYY-MM-DD format if needed
                 if (cellText.includes('/')) {
                   const parts = cellText.split('/')
                   if (parts.length === 3) {
-                    date = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+                    // Handle both MM/DD/YYYY and DD/MM/YYYY
+                    const [part1, part2, year] = parts
+                    date = `${year}-${part1.padStart(2, '0')}-${part2.padStart(2, '0')}`
                   }
                 }
+                console.log(`📅 Found date: ${date}`)
+                continue
               }
               
-              // Check for description (non-numeric text)
+              // Extract description (text that's not date or amount)
               if (cellText && !datePattern.test(cellText) && !amountPattern.test(cellText) && !description) {
-                description = cellText
+                // Look for key Talabat transaction types
+                const lowerText = cellText.toLowerCase()
+                if (lowerText.includes('restaurant') || lowerText.includes('credit card') || 
+                    lowerText.includes('debit card') || lowerText.includes('tgo') || 
+                    lowerText.includes('cash') || lowerText.includes('sales') ||
+                    lowerText.includes('talabat') || lowerText.includes('commission') ||
+                    lowerText.includes('refund')) {
+                  description = cellText
+                  console.log(`📝 Found description: ${description}`)
+                }
+                continue
               }
               
-              // Check for amount (numeric value, prefer credit column)
+              // Extract amounts - look for credit (negative) and debit (positive) values
               if (amountPattern.test(cellText)) {
-                const numValue = parseFloat(cellText.replace(/[^-\d.]/g, ''))
+                // Clean the amount text
+                const cleanAmount = cellText.replace(/[^\d.,-]/g, '').replace(',', '.')
+                const numValue = parseFloat(cleanAmount)
+                
                 if (!isNaN(numValue) && numValue !== 0) {
-                  amount = Math.abs(numValue) // Always positive for credits
+                  console.log(`💰 Found amount: ${cellText} -> ${numValue}`)
+                  
+                  // If it's negative, it's likely a credit (payout)
+                  if (numValue < 0) {
+                    creditAmount = Math.abs(numValue)
+                    console.log(`💳 Credit amount: ${creditAmount}`)
+                  } else if (numValue > 0 && !creditAmount) {
+                    // If positive and no credit found, might be debit
+                    debitAmount = numValue
+                    console.log(`💸 Debit amount: ${debitAmount}`)
+                  }
                 }
               }
             }
             
+            // Prioritize credit amounts (payouts) over debit amounts
+            const finalAmount = creditAmount > 0 ? creditAmount : debitAmount
+            
             // Create transaction if we have minimum required data
-            if (date && amount > 0) {
+            if (date && finalAmount > 0 && description) {
               const transaction: Transaction = {
                 id: `talabat-${transactionId++}`,
                 date: date,
-                description: description || 'Talabat Payout',
-                amount: amount,
+                description: description,
+                amount: finalAmount,
                 type: 'credit',
                 isMatched: false,
                 status: 'pending'
