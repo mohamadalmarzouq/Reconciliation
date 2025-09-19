@@ -392,16 +392,16 @@ Return the result as a JSON array like this:
 
 **CRITICAL RULES:**
 - Convert dates from MM/DD/YYYY to YYYY-MM-DD format
-- Convert negative credit amounts to positive (e.g., -3999.41 → 3999.41)
+- Convert negative credit amounts to positive (e.g., -3999.41 becomes 3999.41)
 - Only extract transactions that represent restaurant revenue/payouts
 - Return empty array if no valid credit transactions found
 - NO explanations, only JSON array`
-- 12/8/2024 → 2024-12-08
+- 12/8/2024 becomes 2024-12-08
 
 **AMOUNT CONVERSION EXAMPLES:**
-- Credit column shows: -2,678.650 → Extract as: 2678.65
-- Credit column shows: -1,202.500 → Extract as: 1202.50
-- Credit column shows: -240.400 → Extract as: 240.40
+- Credit column shows: -2,678.650 becomes 2678.65
+- Credit column shows: -1,202.500 becomes 1202.50
+- Credit column shows: -240.400 becomes 240.40
 
 **REQUIRED JSON OUTPUT FORMAT:**
 Return EXACTLY this structure with the 3 transactions:
@@ -981,7 +981,7 @@ Return JSON array with this exact format:
 ]
 
 Rules:
-- Convert negative amounts to positive (e.g., -3999.410 → 3999.41)
+- Convert negative amounts to positive (e.g., -3999.410 becomes 3999.41)
 - Use date format YYYY-MM-DD
 - Only extract credit transactions (payouts to bank)
 - Return empty array if no valid transactions found
