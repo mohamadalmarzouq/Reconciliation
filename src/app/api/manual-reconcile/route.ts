@@ -982,8 +982,8 @@ async function extractTalabatWithEnhancedTextract(filePath: string): Promise<Tra
           }
           
           // Process each row to find transaction data
-          for (const [rowIndex, cells] of rowMap.entries()) {
-            if (rowIndex === 1) continue // Skip header row
+          rowMap.forEach((cells, rowIndex) => {
+            if (rowIndex === 1) return // Skip header row
             
             // Sort cells by column index
             cells.sort((a, b) => a.column - b.column)
@@ -1042,7 +1042,7 @@ async function extractTalabatWithEnhancedTextract(filePath: string): Promise<Tra
               transactions.push(transaction)
               console.log(`✅ Extracted transaction:`, transaction)
             }
-          }
+          })
         }
       }
     }
