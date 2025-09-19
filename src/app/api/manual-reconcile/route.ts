@@ -334,7 +334,7 @@ Return as JSON array:
     case 'delivery':
       return `You are extracting Talabat delivery payouts from a financial statement PDF. This PDF contains many rows, but you only care about transactions that represent money received by the restaurant (i.e. credits, payouts, or sales).
 
-⚠️ Ignore fees, commissions, or internal charges.
+WARNING: Ignore fees, commissions, or internal charges.
 
 Return only **credit transactions** where:
 - The amount appears in the **Credit column**
@@ -766,7 +766,7 @@ function parseReconciliationMatches(response: string, bankTransactions: Transact
 // Enhanced Talabat PDF extraction using AWS Textract Tables + Forms + Layout
 async function extractTalabatPDFTransactions(filePath: string): Promise<Transaction[]> {
   try {
-    console.log('🚀 Enhanced Textract: Attempting Talabat PDF extraction with Tables+Forms+Layout...')
+    console.log('Enhanced Textract: Attempting Talabat PDF extraction with Tables+Forms+Layout...')
     
     let extractedTransactions: Transaction[] = []
     let extractionMethod = ''
@@ -777,11 +777,11 @@ async function extractTalabatPDFTransactions(filePath: string): Promise<Transact
       const transactions = await extractTalabatWithDirectPDFParsing(filePath)
       
       if (transactions.length > 0) {
-        console.log(`✅ Direct PDF extraction extracted ${transactions.length} transactions`)
+        console.log(`SUCCESS: Direct PDF extraction extracted ${transactions.length} transactions`)
         extractedTransactions = transactions
       }
     } catch (pdfError) {
-      console.log('❌ Direct PDF extraction failed:', pdfError)
+      console.log('ERROR: Direct PDF extraction failed:', pdfError)
     }
     
     // B. Fallback to existing parseFile method
@@ -808,34 +808,34 @@ async function extractTalabatPDFTransactions(filePath: string): Promise<Transact
               status: 'pending' as const
             }))
           
-          console.log(`✅ Existing parser extracted ${extractedTransactions.length} Talabat transactions`)
+          console.log(`SUCCESS: Existing parser extracted ${extractedTransactions.length} Talabat transactions`)
         }
       } catch (parseError) {
-        console.log('❌ Existing parser failed:', parseError)
+        console.log('ERROR: Existing parser failed:', parseError)
       }
     }
     
     // C. Direct Textract processing without AI (to avoid token limits)
     if (extractedTransactions.length === 0) {
       extractionMethod = 'Direct Textract Processing (No AI)'
-      console.log('🎯 Processing Textract data directly to avoid token limits...')
+      console.log('Processing Textract data directly to avoid token limits...')
       
       try {
         // Use the same Textract logic but without AI processing
         const directTransactions = await extractTalabatWithDirectTextract(filePath)
         if (directTransactions.length > 0) {
           extractedTransactions = directTransactions
-          console.log(`🎯 Direct Textract extracted ${directTransactions.length} transactions`)
+          console.log(`SUCCESS: Direct Textract extracted ${directTransactions.length} transactions`)
         }
       } catch (directError) {
-        console.log('❌ Direct Textract processing failed:', directError)
+        console.log('ERROR: Direct Textract processing failed:', directError)
       }
     }
 
     // D. Minimal AI extraction as absolute final fallback (with reduced tokens)
     if (extractedTransactions.length === 0) {
       extractionMethod = 'Minimal AI Extraction'
-      console.log('🤖 Using minimal AI extraction with reduced token usage...')
+      console.log('Using minimal AI extraction with reduced token usage...')
       
       // Create a focused summary of the key credit transactions from the statement
       const focusedPrompt = `Extract ONLY credit transactions from this Talabat data:
