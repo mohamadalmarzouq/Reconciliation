@@ -944,7 +944,7 @@ async function extractTalabatWithEnhancedTextract(filePath: string): Promise<Tra
             .filter(rel => rel.Type === 'CHILD')
             .flatMap(rel => rel.Ids || [])
             .map(id => result.Blocks?.find(block => block.Id === id))
-            .filter(Boolean)
+            .filter((block): block is NonNullable<typeof block> => Boolean(block))
             .filter(block => block.BlockType === 'CELL')
           
           console.log(`📋 Processing ${cellBlocks.length} cells from table`)
@@ -967,7 +967,7 @@ async function extractTalabatWithEnhancedTextract(filePath: string): Promise<Tra
                 
                 const words = wordIds
                   .map(id => result.Blocks?.find(block => block.Id === id))
-                  .filter(Boolean)
+                  .filter((block): block is NonNullable<typeof block> => Boolean(block))
                   .filter(block => block.BlockType === 'WORD')
                   .map(word => word.Text || '')
                 
