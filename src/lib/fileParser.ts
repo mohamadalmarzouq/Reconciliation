@@ -89,7 +89,7 @@ Rules:
 Extract all transactions from the bank statement:`
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview", // Upgraded to GPT-4 Turbo (128k tokens)
+        model: "gpt-5-mini", // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
         messages: [
           {
             role: "system",

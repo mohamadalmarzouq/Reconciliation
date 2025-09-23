@@ -15,26 +15,10 @@ export async function POST(request: NextRequest) {
     
     const bankFile = formData.get('bankFile') as File
     const secondaryFile = formData.get('secondaryFile') as File
-    const scope = formData.get('scope') as string
-    const category = formData.get('category') as string
 
-    if (!bankFile) {
+    if (!bankFile || !secondaryFile) {
       return NextResponse.json(
-        { error: 'Bank statement file is required' },
-        { status: 400 }
-      )
-    }
-
-    if (scope === 'specific' && !secondaryFile) {
-      return NextResponse.json(
-        { error: 'Secondary document is required for specific reconciliation' },
-        { status: 400 }
-      )
-    }
-
-    if (scope === 'specific' && !category) {
-      return NextResponse.json(
-        { error: 'Category selection is required for specific reconciliation' },
+        { error: 'Both bank statement and secondary document are required' },
         { status: 400 }
       )
     }
@@ -69,27 +53,16 @@ export async function POST(request: NextRequest) {
 
       console.log('Parsing secondary document:', secondaryFilePath)
       
-      if (scope === 'specific') {
-        // Use category-specific parsing
-        secondaryTransactions = await parseCategorySpecificFile(secondaryFilePath, secondaryFile.type, category)
-      } else {
-        // Use general parsing
-        secondaryTransactions = await parseFile(secondaryFilePath, secondaryFile.type)
-      }
+      // Always use complete mode - extract ALL transactions (debit + credit)
+      secondaryTransactions = await parseCompleteDocument(secondaryFilePath, secondaryFile.type)
     }
 
-    // Perform reconciliation
-    let reconciliationResult
-    if (scope === 'complete') {
-      reconciliationResult = await performCompleteReconciliation(bankTransactions, secondaryTransactions)
-    } else {
-      reconciliationResult = await performSpecificReconciliation(bankTransactions, secondaryTransactions, category)
-    }
+    // Perform complete reconciliation - extract ALL transactions for user control
+    const reconciliationResult = await performCompleteReconciliation(bankTransactions, secondaryTransactions)
 
     // Add detailed logging for debugging
     console.log('Manual reconciliation results:', {
-      scope,
-      category,
+      scope: 'complete',
       bankTransactionsCount: bankTransactions.length,
       secondaryTransactionsCount: secondaryTransactions.length,
       matchesCount: reconciliationResult.matches.length,
@@ -98,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Manual reconciliation completed using ${scope} mode${scope === 'specific' ? ` with ${category} category` : ''}`,
+      message: `Manual reconciliation completed using complete mode - extracted all transactions for user control`,
       bankTransactions: reconciliationResult.bankTransactions,
       secondaryTransactions: reconciliationResult.secondaryTransactions,
       matches: reconciliationResult.matches,
@@ -125,6 +98,88 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
+  }
+}
+
+// Parse complete document - extract ALL transactions (debit + credit) for user control
+async function parseCompleteDocument(filePath: string, fileType: string): Promise<Transaction[]> {
+  console.log(`Parsing complete document: ${filePath} (${fileType})`)
+  
+  try {
+    // First try standard parsing
+    const standardTransactions = await parseFile(filePath, fileType)
+    if (standardTransactions && standardTransactions.length > 0) {
+      console.log(`Standard parsing extracted ${standardTransactions.length} transactions`)
+      return standardTransactions
+    }
+    
+    // If standard parsing fails, use AI to extract ALL transactions
+    console.log('Standard parsing failed, using AI for complete extraction...')
+    return await parseWithCompleteAI(filePath, fileType)
+    
+  } catch (error) {
+    console.error('Error in complete document parsing:', error)
+    return []
+  }
+}
+
+// AI-powered complete document parsing - extract ALL transactions
+async function parseWithCompleteAI(filePath: string, fileType: string): Promise<Transaction[]> {
+  try {
+    // Extract text from document
+    const documentText = await extractDocumentText(filePath, fileType)
+    if (!documentText) {
+      console.log('No text extracted from document')
+      return []
+    }
+
+    console.log('Document text extracted, length:', documentText.length)
+
+    // Use AI to extract ALL transactions (debit + credit)
+    const aiPrompt = `Extract ALL transactions from this document. Return both debit and credit transactions.
+
+Document text:
+${documentText}
+
+Return ONLY a JSON array with this format:
+[
+  {
+    "date": "YYYY-MM-DD",
+    "description": "Transaction description",
+    "amount": 123.45,
+    "type": "debit" or "credit"
+  }
+]
+
+Extract ALL transactions you can find - both debits and credits. Give users full visibility.`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a document parser. Extract all transactions and return only valid JSON arrays.'
+        },
+        {
+          role: 'user',
+          content: aiPrompt
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000, // Increased for GPT-5 Mini
+    })
+
+    const response = completion.choices[0]?.message?.content
+    if (!response) {
+      throw new Error('No response from OpenAI for complete parsing')
+    }
+
+    console.log('AI response for complete parsing:', response)
+    return parseAITransactionResponse(response, 'complete')
+
+  } catch (error) {
+    console.error('Error in AI complete parsing:', error)
+    return []
   }
 }
 
@@ -262,7 +317,7 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
   const prompt = getCategorySpecificPrompt(category, documentText)
   
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
+    model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
     messages: [
       {
         role: 'system',
@@ -536,7 +591,7 @@ Return JSON array of matches:
 `
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
+    model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
     messages: [
       {
         role: 'system',
@@ -596,7 +651,7 @@ Return JSON array of matches:
 `
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
+    model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
     messages: [
       {
         role: 'system',
@@ -818,7 +873,7 @@ Return JSON array:
 Date: 8/31/2025, focus on credit column negative values.`
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview', // 128k tokens instead of 8k
+        model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
         messages: [
           {
             role: 'system',
@@ -954,7 +1009,7 @@ Rules:
 - NO explanations, only JSON`
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-5-mini', // Upgraded to GPT-5 Mini (500k tokens, better accuracy)
         messages: [
           {
             role: 'system',

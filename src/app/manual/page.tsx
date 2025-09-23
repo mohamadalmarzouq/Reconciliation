@@ -2,24 +2,11 @@
 
 import { useState } from 'react'
 
-type ReconciliationScope = 'complete' | 'specific'
-type DocumentCategory = 'sales' | 'expense' | 'delivery' | 'pos' | 'accounting' | 'general'
-
 export default function ManualPage() {
-  const [scope, setScope] = useState<ReconciliationScope>('complete')
-  const [category, setCategory] = useState<DocumentCategory>('sales')
   const [bankFile, setBankFile] = useState<File | null>(null)
   const [secondaryFile, setSecondaryFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const categoryOptions = [
-    { value: 'sales', label: '📊 Sales Report', description: 'Daily/monthly sales data' },
-    { value: 'expense', label: '💰 Expense Report', description: 'Business expense records' },
-    { value: 'delivery', label: '🚚 Delivery Platform Report', description: 'Talabat, Jahez, etc. payouts' },
-    { value: 'pos', label: '🏪 POS Report', description: 'Point of sale daily totals' },
-    { value: 'accounting', label: '📋 Accounting Software Export', description: 'General ledger export' },
-    { value: 'general', label: '📄 General/Other', description: 'Other transaction documents' }
-  ]
 
   const handleFileUpload = (file: File, type: 'bank' | 'secondary') => {
     if (type === 'bank') {
@@ -30,8 +17,8 @@ export default function ManualPage() {
   }
 
   const processReconciliation = async () => {
-    if (!bankFile || (scope === 'specific' && !secondaryFile)) {
-      alert('Please upload all required files')
+    if (!bankFile || !secondaryFile) {
+      alert('Please upload both bank statement and secondary document')
       return
     }
 
@@ -39,13 +26,8 @@ export default function ManualPage() {
     try {
       const formData = new FormData()
       formData.append('bankFile', bankFile)
-      if (secondaryFile) {
-        formData.append('secondaryFile', secondaryFile)
-      }
-      formData.append('scope', scope)
-      if (scope === 'specific') {
-        formData.append('category', category)
-      }
+      formData.append('secondaryFile', secondaryFile)
+      formData.append('scope', 'complete')
 
       const response = await fetch('/api/manual-reconcile', {
         method: 'POST',
@@ -83,91 +65,15 @@ export default function ManualPage() {
             📄 Manual Mode Reconciliation
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Upload documents and reconcile with category-specific AI intelligence
+            Upload bank statement and secondary document for complete transaction extraction and reconciliation
           </p>
         </div>
 
         <div className="max-w-4xl mx-auto">
-          {/* Step 1: Reconciliation Scope */}
+          {/* File Upload */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              🧭 Step 1: Reconciliation Scope
-            </h2>
-            <p className="text-gray-600 mb-6">
-              What type of reconciliation would you like to perform?
-            </p>
-            
-            <div className="space-y-4">
-              <label className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="scope"
-                  value="complete"
-                  checked={scope === 'complete'}
-                  onChange={(e) => setScope(e.target.value as ReconciliationScope)}
-                  className="mr-4"
-                />
-                <div>
-                  <div className="font-semibold text-gray-900">⭘ Complete</div>
-                  <div className="text-gray-600">General reconciliation across all data types</div>
-                </div>
-              </label>
-              
-              <label className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
-                <input
-                  type="radio"
-                  name="scope"
-                  value="specific"
-                  checked={scope === 'specific'}
-                  onChange={(e) => setScope(e.target.value as ReconciliationScope)}
-                  className="mr-4"
-                />
-                <div>
-                  <div className="font-semibold text-gray-900">⭘ Specific</div>
-                  <div className="text-gray-600">Category-specific logic based on document type</div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {/* Step 2: Category Selection (if Specific) */}
-          {scope === 'specific' && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                🔁 Step 2: Select Document Category
-              </h2>
-              <p className="text-gray-600 mb-6">
-                Choose the type of document you'll be uploading:
-              </p>
-              
-              <div className="grid md:grid-cols-2 gap-4">
-                {categoryOptions.map((option) => (
-                  <label 
-                    key={option.value}
-                    className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="category"
-                      value={option.value}
-                      checked={category === option.value}
-                      onChange={(e) => setCategory(e.target.value as DocumentCategory)}
-                      className="mr-4"
-                    />
-                    <div>
-                      <div className="font-semibold text-gray-900">{option.label}</div>
-                      <div className="text-gray-600 text-sm">{option.description}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: File Upload */}
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              📤 Step 3: Upload Documents
+              📤 Upload Documents
             </h2>
             
             <div className="grid md:grid-cols-2 gap-8">
