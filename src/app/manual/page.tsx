@@ -112,10 +112,7 @@ export default function ManualPage() {
               {/* Secondary Document Upload */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  📊 {scope === 'specific' ? 
-                    categoryOptions.find(c => c.value === category)?.label || 'Secondary Document' : 
-                    'Secondary Document'
-                  }
+                  📊 Secondary Document
                 </h3>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                   <input
@@ -149,9 +146,9 @@ export default function ManualPage() {
             <div className="text-center mt-8">
               <button
                 onClick={processReconciliation}
-                disabled={!bankFile || (scope === 'specific' && !secondaryFile) || isProcessing}
+                disabled={!bankFile || !secondaryFile || isProcessing}
                 className={`px-8 py-3 rounded-lg font-medium transition-colors ${
-                  (!bankFile || (scope === 'specific' && !secondaryFile) || isProcessing)
+                  (!bankFile || !secondaryFile || isProcessing)
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                     : 'bg-purple-600 text-white hover:bg-purple-700'
                 }`}
