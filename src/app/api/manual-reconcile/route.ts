@@ -82,8 +82,7 @@ export async function POST(request: NextRequest) {
         confidenceScore: reconciliationResult.averageConfidence
       },
       debug: {
-        scope,
-        category,
+        scope: 'complete',
         secondaryFileProcessed: !!secondaryFile,
         secondaryTransactionsFound: secondaryTransactions.length
       }
