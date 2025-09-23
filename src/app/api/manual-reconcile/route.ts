@@ -199,7 +199,7 @@ async function extractTextUsingTextractS3(filePath: string): Promise<string | nu
 
   while (status === 'IN_PROGRESS') {
     await new Promise(r => setTimeout(r, 2000))
-    const res = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId, NextToken: nextToken }))
+    const res: any = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId, NextToken: nextToken }))
     status = res.JobStatus || 'IN_PROGRESS'
 
     if (res.Blocks) {
