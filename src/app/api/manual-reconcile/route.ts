@@ -187,7 +187,6 @@ Extract ALL transactions you can find - both debits and credits. Give users full
           content: aiPrompt
         }
       ],
-      temperature: 0.1
     })
 
     const response = completion.choices[0]?.message?.content
@@ -271,51 +270,20 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
       throw new Error(`Unable to extract text from Talabat PDF document`)
     }
   } else if (fileType.includes('pdf')) {
-    // Use existing Textract logic for non-delivery PDFs
+    // BYPASS TEXTRACT: Use standard parser output as text for AI
     try {
-      // Use AWS Textract to get the raw text
-      const { TextractClient, AnalyzeDocumentCommand } = await import('@aws-sdk/client-textract')
-      const fs = await import('fs')
-      
-      const textractClient = new TextractClient({
-        region: process.env.AWS_REGION || 'us-east-1',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-        },
-      })
-
-      const fileBuffer = fs.readFileSync(filePath)
-      
-      const command = new AnalyzeDocumentCommand({
-        Document: { Bytes: fileBuffer },
-        FeatureTypes: ['TABLES', 'FORMS']
-      })
-
-      const result = await textractClient.send(command)
-      
-      if (result.Blocks) {
-        documentText = result.Blocks
-          .filter(block => block.BlockType === 'LINE')
-          .map(block => block.Text)
-          .join('\n')
-        
-        console.log(`Textract extracted ${result.Blocks.length} blocks for ${category}`)
-        console.log(`Sample extracted text:`, documentText.substring(0, 1000))
-      }
-    } catch (textractError) {
-      console.error('Textract failed for category parsing:', textractError)
-      
-      // Fallback to basic parsing
       const rawTransactions = await parseFile(filePath, fileType)
       if (rawTransactions.length > 0) {
         documentText = rawTransactions.map(t => 
           `Date: ${t.date}, Description: ${t.description}, Amount: ${t.amount}, Type: ${t.type}`
         ).join('\n')
-        console.log('Converted parsed transactions to text for AI:', documentText)
+        console.log('Bypass Textract: Converted parsed transactions to text for AI:', documentText.substring(0, 500))
       } else {
-        throw new Error(`Unable to extract text from ${category} PDF document`)
+        throw new Error('No transactions extracted from PDF via standard parser')
       }
+    } catch (parseErr) {
+      console.error('Bypass Textract path failed to read PDF:', parseErr)
+      throw new Error('Unable to extract text from PDF without Textract')
     }
   } else {
     // For CSV/XLSX, read the raw content
@@ -349,7 +317,6 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
         content: prompt
       }
     ],
-    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -622,7 +589,6 @@ Return JSON array of matches:
         content: prompt
       }
     ],
-    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -681,7 +647,6 @@ Return JSON array of matches:
         content: prompt
       }
     ],
-    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -902,7 +867,6 @@ Date: 8/31/2025, focus on credit column negative values.`
             content: focusedPrompt
           }
         ],
-        temperature: 0
       })
 
       const response = completion.choices[0]?.message?.content?.trim()
@@ -1037,7 +1001,6 @@ Rules:
             content: talabatPrompt
           }
         ],
-        temperature: 0
       })
 
       const response = completion.choices[0]?.message?.content?.trim()

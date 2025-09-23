@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
             content: prompt
           }
         ],
-        temperature: 0.1
       })
 
       const response = completion.choices[0]?.message?.content
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
             content: prompt
           }
         ],
-        temperature: 0.1
       })
 
       const response = completion.choices[0]?.message?.content
@@ -122,7 +120,6 @@ export async function POST(request: NextRequest) {
             content: prompt
           }
         ],
-        temperature: 0.1
       })
 
       const response = completion.choices[0]?.message?.content

@@ -100,7 +100,6 @@ Extract all transactions from the bank statement:`
             content: prompt
           }
         ],
-        temperature: 0.1
       })
 
       const responseText = completion.choices[0]?.message?.content || ''
