@@ -132,7 +132,7 @@ export default function ManualPage() {
                       ) : (
                         <div>
                           <div className="text-4xl mb-2">📊</div>
-                          <div>Click to upload {scope === 'complete' ? 'secondary document' : categoryOptions.find(c => c.value === category)?.description}</div>
+                          <div>Click to upload secondary document</div>
                           <div className="text-sm">(PDF, CSV, XLSX)</div>
                         </div>
                       )}
