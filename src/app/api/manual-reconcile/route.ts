@@ -187,8 +187,7 @@ Extract ALL transactions you can find - both debits and credits. Give users full
           content: aiPrompt
         }
       ],
-      temperature: 0.1,
-      max_tokens: 4000, // Using max_tokens for compatibility
+      temperature: 0.1
     })
 
     const response = completion.choices[0]?.message?.content
@@ -350,8 +349,7 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
         content: prompt
       }
     ],
-    temperature: 0.1,
-    max_tokens: 3000, // Using max_tokens for compatibility
+    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -624,8 +622,7 @@ Return JSON array of matches:
         content: prompt
       }
     ],
-    temperature: 0.1,
-    max_tokens: 2000, // Using max_tokens for compatibility
+    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -684,8 +681,7 @@ Return JSON array of matches:
         content: prompt
       }
     ],
-    temperature: 0.1,
-    max_tokens: 2000, // Using max_tokens for compatibility
+    temperature: 0.1
   })
 
   const response = completion.choices[0]?.message?.content
@@ -906,8 +902,7 @@ Date: 8/31/2025, focus on credit column negative values.`
             content: focusedPrompt
           }
         ],
-        temperature: 0,
-        max_tokens: 4000, // Using max_tokens for compatibility
+        temperature: 0
       })
 
       const response = completion.choices[0]?.message?.content?.trim()
@@ -1042,8 +1037,7 @@ Rules:
             content: talabatPrompt
           }
         ],
-        temperature: 0,
-        max_tokens: 4000, // Using max_tokens for compatibility
+        temperature: 0
       })
 
       const response = completion.choices[0]?.message?.content?.trim()
