@@ -125,6 +125,14 @@ async function parseCompleteDocument(filePath: string, fileType: string): Promis
 // Extract text from document using appropriate method
 async function extractDocumentText(filePath: string, fileType: string): Promise<string | null> {
   try {
+    // If S3/async Textract is enabled and PDF, use Textract via S3
+    if ((process.env.TEXTRACT_USE_S3 === 'true') && fileType.includes('pdf')) {
+      console.log('Textract S3/async enabled. Uploading PDF and starting analysis...')
+      const text = await extractTextUsingTextractS3(filePath)
+      if (text) return text
+      console.log('Textract S3 returned no text. Falling back to standard parseFile...')
+    }
+
     if (fileType === 'application/pdf') {
       // Use existing parseFile function to extract text from PDF
       const transactions = await parseFile(filePath, fileType)
@@ -143,6 +151,79 @@ async function extractDocumentText(filePath: string, fileType: string): Promise<
     console.error('Error extracting document text:', error)
     return null
   }
+}
+
+// Use S3 + Textract async APIs to extract text from PDF
+async function extractTextUsingTextractS3(filePath: string): Promise<string | null> {
+  const bucket = process.env.TEXTRACT_BUCKET
+  if (!bucket) {
+    console.warn('TEXTRACT_BUCKET not set; skipping S3 Textract path.')
+    return null
+  }
+
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3')
+  const { TextractClient, StartDocumentAnalysisCommand, GetDocumentAnalysisCommand } = await import('@aws-sdk/client-textract')
+  const fs = await import('fs')
+  const path = await import('path')
+
+  const region = process.env.AWS_REGION || 'us-east-1'
+  const credentials = (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+    ? { accessKeyId: process.env.AWS_ACCESS_KEY_ID!, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY! }
+    : undefined
+
+  const s3 = new S3Client({ region, credentials })
+  const textract = new TextractClient({ region, credentials })
+
+  // Upload to S3
+  const key = `uploads/${Date.now()}_${path.basename(filePath)}`
+  const body = fs.readFileSync(filePath)
+  await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }))
+  console.log(`Uploaded PDF to s3://${bucket}/${key}`)
+
+  // Start Textract job (TABLES + FORMS)
+  const start = await textract.send(new StartDocumentAnalysisCommand({
+    DocumentLocation: { S3Object: { Bucket: bucket, Name: key } },
+    FeatureTypes: ['TABLES', 'FORMS']
+  }))
+  const jobId = start.JobId
+  if (!jobId) {
+    console.error('Textract start returned no JobId')
+    return null
+  }
+  console.log('Started Textract JobId:', jobId)
+
+  // Poll until complete
+  let nextToken: string | undefined = undefined
+  let status = 'IN_PROGRESS'
+  const lines: string[] = []
+
+  while (status === 'IN_PROGRESS') {
+    await new Promise(r => setTimeout(r, 2000))
+    const res = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId, NextToken: nextToken }))
+    status = res.JobStatus || 'IN_PROGRESS'
+
+    if (res.Blocks) {
+      for (const b of res.Blocks) {
+        if (b.BlockType === 'LINE' && b.Text) {
+          lines.push(b.Text)
+        }
+      }
+    }
+
+    nextToken = res.NextToken
+    if (!nextToken && (status === 'SUCCEEDED' || status === 'FAILED' || status === 'PARTIAL_SUCCESS')) {
+      break
+    }
+  }
+
+  if (status !== 'SUCCEEDED' && status !== 'PARTIAL_SUCCESS') {
+    console.error('Textract job did not succeed. Status:', status)
+    return null
+  }
+
+  const text = lines.join('\n')
+  console.log(`Textract S3 extracted ${lines.length} lines (${text.length} chars)`) 
+  return text || null
 }
 
 // AI-powered complete document parsing - extract ALL transactions
