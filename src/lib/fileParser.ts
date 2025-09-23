@@ -101,7 +101,7 @@ Extract all transactions from the bank statement:`
           }
         ],
         temperature: 0.1,
-        max_completion_tokens: 4000 // GPT-5 Mini uses max_completion_tokens
+        max_tokens: 4000 // Using max_tokens for compatibility
       })
 
       const responseText = completion.choices[0]?.message?.content || ''
