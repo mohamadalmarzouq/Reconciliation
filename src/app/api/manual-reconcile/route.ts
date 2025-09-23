@@ -122,6 +122,29 @@ async function parseCompleteDocument(filePath: string, fileType: string): Promis
   }
 }
 
+// Extract text from document using appropriate method
+async function extractDocumentText(filePath: string, fileType: string): Promise<string | null> {
+  try {
+    if (fileType === 'application/pdf') {
+      // Use existing parseFile function to extract text from PDF
+      const transactions = await parseFile(filePath, fileType)
+      // Convert transactions back to text for AI processing
+      return transactions.map(t => 
+        `${t.date} | ${t.description} | ${t.amount} | ${t.type}`
+      ).join('\n')
+    } else {
+      // For CSV/XLSX, use parseFile and convert to text
+      const transactions = await parseFile(filePath, fileType)
+      return transactions.map(t => 
+        `${t.date} | ${t.description} | ${t.amount} | ${t.type}`
+      ).join('\n')
+    }
+  } catch (error) {
+    console.error('Error extracting document text:', error)
+    return null
+  }
+}
+
 // AI-powered complete document parsing - extract ALL transactions
 async function parseWithCompleteAI(filePath: string, fileType: string): Promise<Transaction[]> {
   try {
