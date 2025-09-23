@@ -188,7 +188,7 @@ Extract ALL transactions you can find - both debits and credits. Give users full
         }
       ],
       temperature: 0.1,
-      max_tokens: 4000, // Increased for GPT-5 Mini
+      max_completion_tokens: 4000, // GPT-5 Mini uses max_completion_tokens
     })
 
     const response = completion.choices[0]?.message?.content
@@ -351,7 +351,7 @@ async function parseWithCategoryAI(filePath: string, fileType: string, category:
       }
     ],
     temperature: 0.1,
-    max_tokens: 3000,
+    max_completion_tokens: 3000, // GPT-5 Mini uses max_completion_tokens
   })
 
   const response = completion.choices[0]?.message?.content
@@ -625,7 +625,7 @@ Return JSON array of matches:
       }
     ],
     temperature: 0.1,
-    max_tokens: 2000,
+    max_completion_tokens: 2000, // GPT-5 Mini uses max_completion_tokens
   })
 
   const response = completion.choices[0]?.message?.content
@@ -685,7 +685,7 @@ Return JSON array of matches:
       }
     ],
     temperature: 0.1,
-    max_tokens: 2000,
+    max_completion_tokens: 2000, // GPT-5 Mini uses max_completion_tokens
   })
 
   const response = completion.choices[0]?.message?.content
@@ -907,7 +907,7 @@ Date: 8/31/2025, focus on credit column negative values.`
           }
         ],
         temperature: 0,
-        max_tokens: 4000, // Increased token limit
+        max_completion_tokens: 4000, // GPT-5 Mini uses max_completion_tokens
       })
 
       const response = completion.choices[0]?.message?.content?.trim()
@@ -1043,7 +1043,7 @@ Rules:
           }
         ],
         temperature: 0,
-        max_tokens: 4000,
+        max_completion_tokens: 4000, // GPT-5 Mini uses max_completion_tokens
       })
 
       const response = completion.choices[0]?.message?.content?.trim()

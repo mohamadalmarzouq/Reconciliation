@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
           }
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_completion_tokens: 3000, // GPT-5 Mini uses max_completion_tokens
       })
 
       const response = completion.choices[0]?.message?.content
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
           }
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_completion_tokens: 3000, // GPT-5 Mini uses max_completion_tokens
       })
 
       const response = completion.choices[0]?.message?.content
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
           }
         ],
         temperature: 0.1,
-        max_tokens: 2000,
+        max_completion_tokens: 2000, // GPT-5 Mini uses max_completion_tokens
       })
 
       const response = completion.choices[0]?.message?.content
