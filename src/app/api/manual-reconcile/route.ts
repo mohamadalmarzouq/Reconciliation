@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       console.log('Parsing secondary document:', secondaryFilePath)
       
       // Always use complete mode - extract ALL transactions (debit + credit)
-      secondaryTransactions = await parseCompleteDocument(secondaryFilePath, secondaryFile.type)
+      secondaryTransactions = await parseWithCompleteAI(secondaryFilePath, secondaryFile.type)
     }
 
     // Perform complete reconciliation - extract ALL transactions for user control
