@@ -125,6 +125,10 @@ async function parseCompleteDocument(filePath: string, fileType: string): Promis
 // Extract text from document using appropriate method
 async function extractDocumentText(filePath: string, fileType: string): Promise<string | null> {
   try {
+    console.log('DEBUG: TEXTRACT_USE_S3 =', process.env.TEXTRACT_USE_S3)
+    console.log('DEBUG: fileType =', fileType)
+    console.log('DEBUG: TEXTRACT_BUCKET =', process.env.TEXTRACT_BUCKET)
+    
     // If S3/async Textract is enabled and PDF, use Textract via S3
     if ((process.env.TEXTRACT_USE_S3 === 'true') && fileType.includes('pdf')) {
       console.log('Textract S3/async enabled. Uploading PDF and starting analysis...')
