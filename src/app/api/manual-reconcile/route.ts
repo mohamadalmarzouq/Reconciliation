@@ -233,6 +233,10 @@ async function extractTextUsingTextractS3(filePath: string): Promise<string | nu
 // AI-powered complete document parsing - extract ALL transactions
 async function parseWithCompleteAI(filePath: string, fileType: string): Promise<Transaction[]> {
   try {
+    console.log('=== STARTING parseWithCompleteAI ===')
+    console.log('File path:', filePath)
+    console.log('File type:', fileType)
+    
     // Extract text from document
     const documentText = await extractDocumentText(filePath, fileType)
     if (!documentText) {
