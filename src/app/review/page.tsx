@@ -2,32 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { saveReconciliationReport, generateDefaultReportName } from '@/lib/reportGenerator'
-
-interface Transaction {
-  id: string
-  date: string
-  description: string
-  amount: number
-  balance?: number
-  type: 'debit' | 'credit'
-  isMatched: boolean
-  status: 'pending' | 'accepted' | 'rejected' | 'flagged' | 'under_review'
-  reviewedBy?: string
-  reviewedAt?: string
-  reviewNotes?: string
-  match?: {
-    confidence: number
-    explanation: string
-    suggestedAction: string
-    accountingEntry?: {
-      id: string
-      description: string
-      amount: number
-      date: string
-      account: string
-    }
-  }
-}
+import { Transaction } from '@/types'
 
 export default function ReviewPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
