@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ReconciliationReport, ReportSummary } from '@/types'
+import { ReconciliationReport, ReportSummary, ReportSummaryItem } from '@/types'
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<ReconciliationReport[]>([])

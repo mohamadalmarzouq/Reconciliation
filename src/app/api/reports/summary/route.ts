@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDatabasePool } from '@/lib/database'
-import { ReportSummary } from '@/types'
+import { ReportSummary, ReportSummaryItem } from '@/types'
 
 // GET /api/reports/summary - Get reports summary for dashboard
 export async function GET(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     })
     
     // Transform recent reports
-    const recentReports = recentResult.rows.map(row => ({
+    const recentReports: ReportSummaryItem[] = recentResult.rows.map(row => ({
       id: row.id.toString(),
       reportName: row.report_name,
       reportType: row.report_type,

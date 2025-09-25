@@ -139,10 +139,32 @@ export interface ReconciliationReport {
   fileSize?: number
 }
 
+export interface ReportSummaryItem {
+  id: string
+  reportName: string
+  reportType: 'ai_sync' | 'xero_sync' | 'zoho_sync' | 'manual'
+  status: 'completed' | 'in_progress' | 'failed'
+  summaryData: {
+    totalTransactions: number
+    matchedTransactions: number
+    flaggedTransactions: number
+    unmatchedTransactions: number
+    averageConfidence: number
+    processingTime: number
+    provider?: string
+    bankName?: string
+    accountNumber?: string
+  }
+  generatedBy: string
+  generatedAt: string
+  isFavorite: boolean
+  originalFilename?: string
+}
+
 export interface ReportSummary {
   totalReports: number
   syncedReports: number
   manualReports: number
   favoriteReports: number
-  recentReports: ReconciliationReport[]
+  recentReports: ReportSummaryItem[]
 }
