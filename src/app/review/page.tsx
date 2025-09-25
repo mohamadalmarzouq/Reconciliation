@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { saveReconciliationReport, generateDefaultReportName } from '@/lib/reportGenerator'
 
 interface Transaction {
   id: string
@@ -49,6 +50,7 @@ export default function ReviewPage() {
   const [noteTransaction, setNoteTransaction] = useState<Transaction | null>(null)
   const [noteText, setNoteText] = useState('')
   const [processingAction, setProcessingAction] = useState<string | null>(null)
+  const [isSavingReport, setIsSavingReport] = useState(false)
 
   // Handler for transaction actions
   const handleTransactionAction = async (transactionId: string, actionType: 'accept' | 'reject' | 'flag') => {
@@ -553,6 +555,50 @@ export default function ReviewPage() {
     }
   }
 
+  const saveCurrentReport = async () => {
+    if (filteredTransactions.length === 0) {
+      alert('No transactions to save. Please upload and process transactions first.')
+      return
+    }
+
+    setIsSavingReport(true)
+    try {
+      const bankStatementId = sessionStorage.getItem('currentBankStatementId')
+      const reportName = generateDefaultReportName(
+        selectedProvider === 'xero' ? 'xero_sync' : 'zoho_sync',
+        'Bank Statement', // TODO: Get actual bank name
+        new Date().toISOString().split('T')[0]
+      )
+
+      const result = await saveReconciliationReport({
+        reportName,
+        reportType: selectedProvider === 'xero' ? 'xero_sync' : 'zoho_sync',
+        transactions: filteredTransactions,
+        bankStatementId: bankStatementId || undefined,
+        provider: selectedProvider === 'xero' ? 'Xero' : 'Zoho',
+        bankName: 'Bank Statement', // TODO: Get actual bank name
+        processingTime: 0, // TODO: Calculate actual processing time
+        filters: {
+          dateRange: dateFilter.from && dateFilter.to ? {
+            from: dateFilter.from.toISOString().split('T')[0],
+            to: dateFilter.to.toISOString().split('T')[0]
+          } : undefined
+        }
+      })
+
+      if (result.success) {
+        alert(`✅ Report saved successfully! Report ID: ${result.reportId}`)
+      } else {
+        alert(`❌ Failed to save report: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error saving report:', error)
+      alert('❌ Error saving report. Please try again.')
+    } finally {
+      setIsSavingReport(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -569,8 +615,16 @@ export default function ReviewPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Reconciliation Review</h1>
           <div className="flex gap-2 flex-wrap">
-            <button className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">
-              📊 Export Report
+            <button 
+              onClick={saveCurrentReport}
+              disabled={isSavingReport}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isSavingReport 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+            >
+              {isSavingReport ? '💾 Saving...' : '💾 Save Report'}
             </button>
             <button 
               onClick={runAIMatching}

@@ -114,6 +114,50 @@ export async function initializeDatabase() {
     )
   `)
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reconciliation_reports (
+      id SERIAL PRIMARY KEY,
+      report_name VARCHAR(255) NOT NULL,
+      report_type VARCHAR(50) NOT NULL CHECK (report_type IN ('ai_sync', 'xero_sync', 'zoho_sync', 'manual')),
+      bank_statement_id INTEGER REFERENCES bank_statements(id),
+      reconciliation_session_id INTEGER REFERENCES reconciliation_sessions(id),
+      status VARCHAR(20) DEFAULT 'completed' CHECK (status IN ('completed', 'in_progress', 'failed')),
+      
+      -- Report data
+      summary_data JSONB NOT NULL,
+      transaction_data JSONB NOT NULL,
+      reconciliation_metadata JSONB,
+      
+      -- Metadata
+      generated_by VARCHAR(100),
+      generated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      last_accessed TIMESTAMP WITH TIME ZONE,
+      is_favorite BOOLEAN DEFAULT FALSE,
+      tags TEXT[],
+      
+      -- File info (if applicable)
+      original_filename VARCHAR(255),
+      file_size INTEGER
+    )
+  `)
+
+  // Create indexes for better performance
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reports_bank_statement ON reconciliation_reports(bank_statement_id)
+  `)
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reports_generated_at ON reconciliation_reports(generated_at)
+  `)
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reports_type ON reconciliation_reports(report_type)
+  `)
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reports_favorite ON reconciliation_reports(is_favorite)
+  `)
+
     console.log('Database tables initialized successfully')
   } catch (error) {
     console.error('Error initializing database:', error)

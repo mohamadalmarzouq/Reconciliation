@@ -95,3 +95,54 @@ export interface TransactionAction {
   ipAddress?: string
   userAgent?: string
 }
+
+export interface ReconciliationReport {
+  id: string
+  reportName: string
+  reportType: 'ai_sync' | 'xero_sync' | 'zoho_sync' | 'manual'
+  bankStatementId?: string
+  reconciliationSessionId?: string
+  status: 'completed' | 'in_progress' | 'failed'
+  
+  // Report data
+  summaryData: {
+    totalTransactions: number
+    matchedTransactions: number
+    flaggedTransactions: number
+    unmatchedTransactions: number
+    averageConfidence: number
+    processingTime: number
+    provider?: string
+    bankName?: string
+    accountNumber?: string
+  }
+  transactionData: Transaction[]
+  reconciliationMetadata?: {
+    provider?: string
+    filters?: any
+    aiSettings?: any
+    dateRange?: {
+      from: string
+      to: string
+    }
+  }
+  
+  // Metadata
+  generatedBy: string
+  generatedAt: string
+  lastAccessed?: string
+  isFavorite: boolean
+  tags?: string[]
+  
+  // File info
+  originalFilename?: string
+  fileSize?: number
+}
+
+export interface ReportSummary {
+  totalReports: number
+  syncedReports: number
+  manualReports: number
+  favoriteReports: number
+  recentReports: ReconciliationReport[]
+}

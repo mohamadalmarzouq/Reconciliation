@@ -10,7 +10,8 @@ export default function Navbar() {
     { href: '/', label: 'Home', icon: '🏠' },
     { href: '/sync', label: 'Sync Mode', icon: '🔗' },
     { href: '/manual', label: 'Manual Mode', icon: '📄' },
-    { href: '/export', label: 'Export', icon: '📊' },
+    { href: '/reports', label: 'Reports', icon: '📊' },
+    { href: '/export', label: 'Export', icon: '📤' },
   ]
 
   return (

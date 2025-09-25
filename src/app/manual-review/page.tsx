@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { saveReconciliationReport, generateDefaultReportName } from '@/lib/reportGenerator'
 
 interface Transaction {
   id: string
@@ -32,6 +33,7 @@ export default function ManualReviewPage() {
   const [summary, setSummary] = useState<any>({})
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [isSavingReport, setIsSavingReport] = useState(false)
 
   useEffect(() => {
     // Load manual reconciliation results from session storage
@@ -106,6 +108,42 @@ export default function ManualReviewPage() {
     }
   }
 
+  const saveManualReport = async () => {
+    if (bankTransactions.length === 0) {
+      alert('No transactions to save. Please complete a manual reconciliation first.')
+      return
+    }
+
+    setIsSavingReport(true)
+    try {
+      const reportName = generateDefaultReportName(
+        'manual',
+        'Manual Reconciliation',
+        new Date().toISOString().split('T')[0]
+      )
+
+      const result = await saveReconciliationReport({
+        reportName,
+        reportType: 'manual',
+        transactions: bankTransactions,
+        provider: 'Manual',
+        processingTime: 0, // TODO: Calculate actual processing time
+        originalFilename: 'Manual Reconciliation'
+      })
+
+      if (result.success) {
+        alert(`✅ Manual reconciliation report saved successfully! Report ID: ${result.reportId}`)
+      } else {
+        alert(`❌ Failed to save report: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error saving manual report:', error)
+      alert('❌ Error saving report. Please try again.')
+    } finally {
+      setIsSavingReport(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -123,8 +161,16 @@ export default function ManualReviewPage() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Manual Reconciliation Review</h1>
           <div className="flex gap-2">
-            <button className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors">
-              📄 Export Report
+            <button 
+              onClick={saveManualReport}
+              disabled={isSavingReport}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                isSavingReport 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
+            >
+              {isSavingReport ? '💾 Saving...' : '💾 Save Report'}
             </button>
             <a href="/manual" className="bg-gray-200 text-gray-900 px-4 py-2 rounded-lg font-medium hover:bg-gray-300 transition-colors">
               🔄 New Reconciliation
