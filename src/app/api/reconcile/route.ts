@@ -192,9 +192,14 @@ ${invoices.map(i =>
 ).join('\n')}
 
 For each bank transaction, find the best matching Xero invoice or contact and provide:
-1. Confidence score (0-1) for the match quality
+1. Confidence score (0-1) for the match quality:
+   - 0.9-1.0: Perfect match (amount + contact + date)
+   - 0.7-0.8: Good match (amount + contact OR contact + date)
+   - 0.5-0.6: Partial match (contact only OR amount only)
+   - 0.3-0.4: Weak match (date only or description similarity)
+   - 0.0-0.2: No match
 2. Explanation of why it matches or doesn't match
-3. Suggested action: "match", "flag", "split", or "defer"
+3. Suggested action: "match" (confidence > 0.7), "flag" (confidence 0.5-0.7), "defer" (confidence < 0.5)
 4. The matched Xero invoice ID or contact ID (if any)
 
 Return the response as a JSON array of objects with this structure:
@@ -354,7 +359,17 @@ Match based on:
 3. Description/customer name correlation
 4. Invoice numbers or references
 
-Only suggest "match" for high confidence matches (>0.7). Use "flag" for suspicious transactions and "defer" for unclear cases.
+Confidence scoring:
+- 0.9-1.0: Perfect match (amount + contact + date)
+- 0.7-0.8: Good match (amount + contact OR contact + date)
+- 0.5-0.6: Partial match (contact only OR amount only) - FLAG these for review
+- 0.3-0.4: Weak match (date only or description similarity)
+- 0.0-0.2: No match
+
+Suggested actions:
+- "match" for confidence > 0.7
+- "flag" for confidence 0.5-0.7 (partial matches that need review)
+- "defer" for confidence < 0.5
 `
 }
 
@@ -391,7 +406,7 @@ function parseZohoReconciliationResponse(response: string, transactions: Transac
         
         return {
           ...transaction,
-          isMatched: aiResult.suggestedAction === 'match',
+          isMatched: aiResult.suggestedAction === 'match' && aiResult.confidence > 0.7,
           match: {
             confidence: aiResult.confidence,
             explanation: aiResult.explanation,

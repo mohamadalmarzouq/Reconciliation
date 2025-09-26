@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { saveReconciliationReport, generateDefaultReportName } from '@/lib/reportGenerator'
 import { Transaction } from '@/types'
 
@@ -50,6 +50,8 @@ export default function ManualReviewPage() {
       default:
         if (transaction.isMatched) {
           return <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-sm">✓</div>
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return <div className="w-5 h-5 bg-yellow-600 text-white rounded-full flex items-center justify-center text-sm">!</div>
         } else {
           return <div className="w-5 h-5 bg-gray-600 text-white rounded-full flex items-center justify-center text-sm">?</div>
         }
@@ -67,6 +69,8 @@ export default function ManualReviewPage() {
       default:
         if (transaction.isMatched) {
           return 'bg-green-50 border-green-200'
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return 'bg-yellow-50 border-yellow-200'
         } else {
           return 'bg-gray-50 border-gray-200'
         }
@@ -82,7 +86,13 @@ export default function ManualReviewPage() {
       case 'flagged':
         return 'Flagged'
       default:
-        return transaction.isMatched ? 'Matched' : 'Unmatched'
+        if (transaction.isMatched) {
+          return 'Matched'
+        } else if (transaction.match?.suggestedAction === 'flag') {
+          return 'Flagged'
+        } else {
+          return 'Unmatched'
+        }
     }
   }
 
