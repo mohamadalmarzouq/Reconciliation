@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pool } from '@/lib/database'
+import { getDatabasePool } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       ORDER BY sq.created_at DESC
     `
     
+    const pool = getDatabasePool()
     const result = await pool.query(query, [status])
     
     return NextResponse.json({
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       RETURNING *
     `
     
+    const pool = getDatabasePool()
     const result = await pool.query(query, [
       transactionId,
       action,
@@ -101,6 +103,7 @@ export async function PUT(request: NextRequest) {
       RETURNING *
     `
     
+    const pool = getDatabasePool()
     const result = await pool.query(query, [status, errorMessage || null, id])
     
     if (result.rows.length === 0) {
