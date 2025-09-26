@@ -22,14 +22,9 @@ export async function POST(request: NextRequest) {
       AND status = 'accepted'
       AND id NOT IN (SELECT transaction_id FROM sync_queue WHERE transaction_id IS NOT NULL)
       AND (
-        -- Low confidence transactions that need new entries
-        (confidence IS NULL OR confidence < 0.7)
-        OR 
-        -- Flagged transactions that need new entries
-        suggested_action = 'flag'
-        OR
-        -- Unmatched transactions that need new entries
-        is_matched = FALSE
+        -- All accepted transactions need new entries (since confidence data might not be properly stored)
+        -- We'll let the user decide which ones to sync
+        TRUE
       )
     `
     

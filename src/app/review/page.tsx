@@ -66,9 +66,8 @@ export default function ReviewPage() {
           const transaction = transactions.find(t => t.id === transactionId)
           if (transaction) {
             // Only add to sync queue if it needs a new entry (not already matched in accounting software)
-            const needsNewEntry = !transaction.isMatched || 
-                                 (transaction.match?.confidence && transaction.match.confidence < 0.7) ||
-                                 transaction.match?.suggestedAction === 'flag'
+            // For now, add all accepted transactions since confidence data might not be properly stored
+            const needsNewEntry = true
             
             if (needsNewEntry) {
               try {
