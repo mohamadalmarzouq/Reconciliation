@@ -22,9 +22,9 @@ export async function POST(request: NextRequest) {
       AND status = 'accepted'
       AND id NOT IN (SELECT transaction_id FROM sync_queue WHERE transaction_id IS NOT NULL)
       AND (
-        -- All accepted transactions need new entries (since confidence data might not be properly stored)
-        -- We'll let the user decide which ones to sync
-        TRUE
+        -- Only add transactions that need new entries
+        -- Exclude high confidence matches (>= 0.9) as they already exist in Xero
+        (confidence IS NULL OR confidence < 0.9)
       )
     `
     

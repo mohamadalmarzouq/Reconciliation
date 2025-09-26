@@ -66,8 +66,8 @@ export default function ReviewPage() {
           const transaction = transactions.find(t => t.id === transactionId)
           if (transaction) {
             // Only add to sync queue if it needs a new entry (not already matched in accounting software)
-            // For now, add all accepted transactions since confidence data might not be properly stored
-            const needsNewEntry = true
+            // Exclude high confidence matches (>= 0.9) as they already exist in Xero
+            const needsNewEntry = !transaction.confidence || transaction.confidence < 0.9
             
             if (needsNewEntry) {
               try {
