@@ -74,7 +74,7 @@ export default function ReviewPage() {
                 body: JSON.stringify({
                   transactionId,
                   action: 'accept',
-                  provider: provider, // 'xero' or 'zoho'
+                  provider: selectedProvider, // 'xero' or 'zoho'
                   notes: `Approved for sync - ${transaction.isMatched ? 'Confirmed match' : transaction.match?.suggestedAction === 'flag' ? 'Accepted anomaly' : 'Create new entry'}`
                 })
               })
