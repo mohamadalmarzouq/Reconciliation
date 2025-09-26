@@ -61,6 +61,34 @@ export default function ReviewPage() {
         setTransactions(prev => prev.map(updateTransaction))
         setFilteredTransactions(prev => prev.map(updateTransaction))
 
+        // If transaction was accepted, add to sync queue for Xero/Zoho
+        if (actionType === 'accept') {
+          const transaction = transactions.find(t => t.id === transactionId)
+          if (transaction) {
+            try {
+              const syncResponse = await fetch('/api/sync-queue', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  transactionId,
+                  action: 'accept',
+                  provider: provider, // 'xero' or 'zoho'
+                  notes: `Approved for sync - ${transaction.isMatched ? 'Confirmed match' : transaction.match?.suggestedAction === 'flag' ? 'Accepted anomaly' : 'Create new entry'}`
+                })
+              })
+              
+              if (syncResponse.ok) {
+                console.log('Transaction added to sync queue')
+              }
+            } catch (syncError) {
+              console.error('Error adding to sync queue:', syncError)
+              // Don't show error to user as the main action succeeded
+            }
+          }
+        }
+
         alert(`Transaction ${actionType}ed successfully!`)
       } else {
         alert(`Failed to ${actionType} transaction: ${result.error}`)
@@ -308,6 +336,47 @@ export default function ReviewPage() {
     if (confidence >= 0.8) return 'text-green-600'
     if (confidence >= 0.6) return 'text-yellow-600'
     return 'text-red-600'
+  }
+
+  // Dynamic button text based on transaction status
+  const getApproveButtonText = (transaction: Transaction) => {
+    if (transaction.isMatched) {
+      return '✅ Confirm Match'
+    } else if (transaction.match?.suggestedAction === 'flag') {
+      return '✅ Accept Anomaly'
+    } else {
+      return '✅ Create Entry'
+    }
+  }
+
+  const getRejectButtonText = (transaction: Transaction) => {
+    if (transaction.isMatched) {
+      return '❌ Override Match'
+    } else if (transaction.match?.suggestedAction === 'flag') {
+      return '❌ Escalate'
+    } else {
+      return '❌ Ignore'
+    }
+  }
+
+  const getApproveButtonTitle = (transaction: Transaction) => {
+    if (transaction.isMatched) {
+      return 'Confirm the AI\'s match - no new entry needed'
+    } else if (transaction.match?.suggestedAction === 'flag') {
+      return 'Accept anomaly as valid - will create entry in Xero/Zoho'
+    } else {
+      return 'Create new entry in Xero/Zoho for this transaction'
+    }
+  }
+
+  const getRejectButtonTitle = (transaction: Transaction) => {
+    if (transaction.isMatched) {
+      return 'Override AI match - keep transaction open for review'
+    } else if (transaction.match?.suggestedAction === 'flag') {
+      return 'Escalate for manual review - leave open'
+    } else {
+      return 'Ignore this transaction - don\'t create entry'
+    }
   }
 
   const runAIMatching = async () => {
@@ -852,23 +921,16 @@ export default function ReviewPage() {
                             <button
                               onClick={() => handleTransactionAction(transaction.id, 'accept')}
                               className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs hover:bg-green-200 transition-colors"
-                              title="Accept Match"
+                              title={getApproveButtonTitle(transaction)}
                             >
-                              ✅
+                              {transaction.isMatched ? '✅' : transaction.match?.suggestedAction === 'flag' ? '⚠️' : '➕'}
                             </button>
                             <button
                               onClick={() => handleTransactionAction(transaction.id, 'reject')}
                               className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-200 transition-colors"
-                              title="Reject Match"
+                              title={getRejectButtonTitle(transaction)}
                             >
                               ❌
-                            </button>
-                            <button
-                              onClick={() => handleTransactionAction(transaction.id, 'flag')}
-                              className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs hover:bg-yellow-200 transition-colors"
-                              title="Flag Transaction"
-                            >
-                              ⚠️
                             </button>
                           </>
                         )}
@@ -963,8 +1025,9 @@ export default function ReviewPage() {
                           setSelectedTransaction(null)
                         }}
                         className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                        title={getApproveButtonTitle(selectedTransaction)}
                       >
-                        ✅ Accept Match
+                        {getApproveButtonText(selectedTransaction)}
                       </button>
                       <button 
                         onClick={() => {
@@ -972,17 +1035,9 @@ export default function ReviewPage() {
                           setSelectedTransaction(null)
                         }}
                         className="bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                        title={getRejectButtonTitle(selectedTransaction)}
                       >
-                        ❌ Reject Match
-                      </button>
-                      <button 
-                        onClick={() => {
-                          handleTransactionAction(selectedTransaction.id, 'flag')
-                          setSelectedTransaction(null)
-                        }}
-                        className="bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
-                      >
-                        ⚠️ Flag for Review
+                        {getRejectButtonText(selectedTransaction)}
                       </button>
                     </>
                   )}

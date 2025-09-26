@@ -141,9 +141,33 @@ export async function initializeDatabase() {
     )
   `)
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id SERIAL PRIMARY KEY,
+      transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+      action VARCHAR(20) NOT NULL CHECK (action IN ('accept', 'reject', 'flag')),
+      provider VARCHAR(20) CHECK (provider IN ('xero', 'zoho')),
+      account_code VARCHAR(50),
+      notes TEXT,
+      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'syncing', 'synced', 'failed')),
+      error_message TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE,
+      synced_at TIMESTAMP WITH TIME ZONE
+    )
+  `)
+
   // Create indexes for better performance
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_reports_bank_statement ON reconciliation_reports(bank_statement_id)
+  `)
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status)
+  `)
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_transaction ON sync_queue(transaction_id)
   `)
   
   await pool.query(`

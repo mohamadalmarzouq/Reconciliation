@@ -7,13 +7,19 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<ReconciliationReport[]>([])
   const [summary, setSummary] = useState<ReportSummary | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'all' | 'synced' | 'manual' | 'favorites'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'synced' | 'manual' | 'favorites' | 'pending'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedReport, setSelectedReport] = useState<ReconciliationReport | null>(null)
+  const [pendingEntries, setPendingEntries] = useState<any[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
 
   useEffect(() => {
-    fetchReports()
-    fetchSummary()
+    if (activeTab === 'pending') {
+      fetchPendingEntries()
+    } else {
+      fetchReports()
+      fetchSummary()
+    }
   }, [activeTab, searchTerm])
 
   const fetchReports = async () => {
@@ -57,6 +63,21 @@ export default function ReportsPage() {
       }
     } catch (error) {
       console.error('Error fetching summary:', error)
+    }
+  }
+
+  const fetchPendingEntries = async () => {
+    setPendingLoading(true)
+    try {
+      const response = await fetch('/api/sync-queue?status=pending')
+      const data = await response.json()
+      if (data.success) {
+        setPendingEntries(data.queue)
+      }
+    } catch (error) {
+      console.error('Error fetching pending entries:', error)
+    } finally {
+      setPendingLoading(false)
     }
   }
 
@@ -220,7 +241,8 @@ export default function ReportsPage() {
                 { id: 'all', label: 'All Reports', count: summary?.totalReports || 0 },
                 { id: 'synced', label: 'Synced', count: summary?.syncedReports || 0 },
                 { id: 'manual', label: 'Manual', count: summary?.manualReports || 0 },
-                { id: 'favorites', label: 'Favorites', count: summary?.favoriteReports || 0 }
+                { id: 'favorites', label: 'Favorites', count: summary?.favoriteReports || 0 },
+                { id: 'pending', label: 'Pending Entries', count: pendingEntries.length }
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -254,9 +276,99 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Reports Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reports.map((report) => (
+        {/* Pending Entries Section */}
+        {activeTab === 'pending' ? (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Pending Sync Queue</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={fetchPendingEntries}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    🔄 Refresh
+                  </button>
+                  <button
+                    onClick={() => {/* TODO: Implement bulk sync */}}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-colors"
+                  >
+                    ⚡ Sync All
+                  </button>
+                </div>
+              </div>
+              
+              {pendingLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                  <p className="text-gray-600 mt-2">Loading pending entries...</p>
+                </div>
+              ) : pendingEntries.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-6xl text-gray-300 mb-4">📋</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Entries</h3>
+                  <p className="text-gray-600">All approved transactions have been synced to your accounting software.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingEntries.map((entry) => (
+                    <div key={entry.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-sm font-medium text-gray-900">
+                              {entry.description}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              entry.action === 'accept' ? 'bg-green-100 text-green-800' : 
+                              entry.action === 'reject' ? 'bg-red-100 text-red-800' : 
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {entry.action === 'accept' ? '✅ Approve' : 
+                               entry.action === 'reject' ? '❌ Reject' : 
+                               '⚠️ Flag'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {entry.provider ? `→ ${entry.provider.toUpperCase()}` : 'No provider'}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            <span className="font-medium">${Math.abs(entry.amount).toFixed(2)}</span>
+                            <span className="mx-2">•</span>
+                            <span>{new Date(entry.date).toLocaleDateString()}</span>
+                            {entry.notes && (
+                              <>
+                                <span className="mx-2">•</span>
+                                <span className="italic">{entry.notes}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {/* TODO: Implement individual sync */}}
+                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                          >
+                            Sync Now
+                          </button>
+                          <button
+                            onClick={() => {/* TODO: Implement edit */}}
+                            className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700 transition-colors"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Reports Grid */
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {reports.map((report) => (
             <div key={report.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-2">
@@ -339,8 +451,9 @@ export default function ReportsPage() {
             </div>
           ))}
         </div>
+        )}
 
-        {reports.length === 0 && (
+        {reports.length === 0 && activeTab !== 'pending' && (
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">📊</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
