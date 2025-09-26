@@ -16,20 +16,20 @@ export async function POST(request: NextRequest) {
     
     // Get accepted transactions that need new entries (not already matched in accounting software)
     const query = `
-      SELECT id, date, description, amount, type, match
+      SELECT id, date, description, amount, type, confidence, suggested_action, is_matched
       FROM transactions 
       WHERE bank_statement_id = $1 
       AND status = 'accepted'
       AND id NOT IN (SELECT transaction_id FROM sync_queue WHERE transaction_id IS NOT NULL)
       AND (
         -- Low confidence transactions that need new entries
-        (match->>'confidence')::float < 0.7
+        (confidence IS NULL OR confidence < 0.7)
         OR 
         -- Flagged transactions that need new entries
-        match->>'suggestedAction' = 'flag'
+        suggested_action = 'flag'
         OR
-        -- Transactions without matches that need new entries
-        match IS NULL
+        -- Unmatched transactions that need new entries
+        is_matched = FALSE
       )
     `
     
@@ -57,9 +57,9 @@ export async function POST(request: NextRequest) {
         RETURNING id
       `
       
-      const notes = transaction.match?.suggestedAction === 'flag' 
+      const notes = transaction.suggested_action === 'flag' 
         ? 'Accepted anomaly - will create entry in accounting software'
-        : transaction.match?.confidence > 0.7
+        : transaction.confidence && transaction.confidence > 0.7
         ? 'Confirmed match - no new entry needed'
         : 'Create new entry in accounting software'
       
