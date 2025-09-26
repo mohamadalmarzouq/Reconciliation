@@ -37,8 +37,10 @@ export interface BankStatement {
   uploadDate: string
   status: 'uploaded' | 'processing' | 'processed' | 'error'
   totalTransactions: number
-  matchedTransactions: number
-  unmatchedTransactions: number
+  acceptedTransactions: number
+  rejectedTransactions: number
+  flaggedTransactions: number
+  pendingTransactions: number
   confidenceScore: number
   bankName?: string
   accountNumber?: string
@@ -57,9 +59,10 @@ export interface ReconciliationSession {
 
 export interface ReportData {
   totalTransactions: number
-  matchedTransactions: number
+  acceptedTransactions: number
+  rejectedTransactions: number
   flaggedTransactions: number
-  unmatchedTransactions: number
+  pendingTransactions: number
   confidenceScore: number
   processingTime: number
   generatedAt: string
@@ -107,9 +110,10 @@ export interface ReconciliationReport {
   // Report data
   summaryData: {
     totalTransactions: number
-    matchedTransactions: number
+    acceptedTransactions: number
+    rejectedTransactions: number
     flaggedTransactions: number
-    unmatchedTransactions: number
+    pendingTransactions: number
     averageConfidence: number
     processingTime: number
     provider?: string
@@ -146,9 +150,10 @@ export interface ReportSummaryItem {
   status: 'completed' | 'in_progress' | 'failed'
   summaryData: {
     totalTransactions: number
-    matchedTransactions: number
+    acceptedTransactions: number
+    rejectedTransactions: number
     flaggedTransactions: number
-    unmatchedTransactions: number
+    pendingTransactions: number
     averageConfidence: number
     processingTime: number
     provider?: string

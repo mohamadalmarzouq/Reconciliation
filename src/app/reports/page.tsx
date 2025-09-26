@@ -300,8 +300,16 @@ export default function ReportsPage() {
                   <span className="font-medium">{report.summaryData.totalTransactions}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Matched:</span>
-                  <span className="font-medium text-green-600">{report.summaryData.matchedTransactions}</span>
+                  <span className="text-gray-600">Accepted:</span>
+                  <span className="font-medium text-green-600">{report.summaryData.acceptedTransactions || 0}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Rejected:</span>
+                  <span className="font-medium text-red-600">{report.summaryData.rejectedTransactions || 0}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Flagged:</span>
+                  <span className="font-medium text-yellow-600">{report.summaryData.flaggedTransactions || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Confidence:</span>
@@ -413,16 +421,20 @@ export default function ReportsPage() {
                         <span className="font-medium">{selectedReport.summaryData.totalTransactions}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Matched:</span>
-                        <span className="font-medium text-green-600">{selectedReport.summaryData.matchedTransactions}</span>
+                        <span className="text-gray-600">Accepted:</span>
+                        <span className="font-medium text-green-600">{selectedReport.summaryData.acceptedTransactions || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Rejected:</span>
+                        <span className="font-medium text-red-600">{selectedReport.summaryData.rejectedTransactions || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Flagged:</span>
-                        <span className="font-medium text-yellow-600">{selectedReport.summaryData.flaggedTransactions}</span>
+                        <span className="font-medium text-yellow-600">{selectedReport.summaryData.flaggedTransactions || 0}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Unmatched:</span>
-                        <span className="font-medium text-red-600">{selectedReport.summaryData.unmatchedTransactions}</span>
+                        <span className="text-gray-600">Pending:</span>
+                        <span className="font-medium text-gray-600">{selectedReport.summaryData.pendingTransactions || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Avg Confidence:</span>

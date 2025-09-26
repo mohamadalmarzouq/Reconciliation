@@ -18,9 +18,12 @@ export interface SaveReportOptions {
 
 export function generateReportSummary(transactions: Transaction[], options: Partial<SaveReportOptions> = {}): any {
   const totalTransactions = transactions.length
-  const matchedTransactions = transactions.filter(t => t.status === 'accepted' || t.isMatched).length
+  
+  // Count based on actual user actions (status), not AI matching results
+  const acceptedTransactions = transactions.filter(t => t.status === 'accepted').length
+  const rejectedTransactions = transactions.filter(t => t.status === 'rejected').length
   const flaggedTransactions = transactions.filter(t => t.status === 'flagged').length
-  const unmatchedTransactions = transactions.filter(t => t.status === 'pending' || (!t.isMatched && t.status !== 'accepted')).length
+  const pendingTransactions = transactions.filter(t => t.status === 'pending' || t.status === 'under_review').length
   
   // Calculate average confidence
   const transactionsWithConfidence = transactions.filter(t => t.match?.confidence)
@@ -30,9 +33,10 @@ export function generateReportSummary(transactions: Transaction[], options: Part
 
   return {
     totalTransactions,
-    matchedTransactions,
+    acceptedTransactions,
+    rejectedTransactions,
     flaggedTransactions,
-    unmatchedTransactions,
+    pendingTransactions,
     averageConfidence,
     processingTime: options.processingTime || 0,
     provider: options.provider,
