@@ -81,6 +81,43 @@ export default function ReportsPage() {
     }
   }
 
+  const addExistingAcceptedTransactions = async () => {
+    setPendingLoading(true)
+    try {
+      // Get the current bank statement ID from session storage
+      const bankStatementId = sessionStorage.getItem('currentBankStatementId')
+      if (!bankStatementId) {
+        alert('No bank statement found. Please go to Review page first.')
+        return
+      }
+
+      const response = await fetch('/api/sync-queue/bulk-add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bankStatementId,
+          provider: 'xero' // Default to xero, could be made dynamic
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        alert(`Added ${data.added} existing accepted transactions to sync queue!`)
+        // Refresh the pending entries
+        await fetchPendingEntries()
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error adding existing transactions:', error)
+      alert('Error adding existing transactions to sync queue')
+    } finally {
+      setPendingLoading(false)
+    }
+  }
+
   const toggleFavorite = async (reportId: string, currentStatus: boolean) => {
     try {
       const response = await fetch(`/api/reports/${reportId}`, {
@@ -288,6 +325,12 @@ export default function ReportsPage() {
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors"
                   >
                     🔄 Refresh
+                  </button>
+                  <button
+                    onClick={addExistingAcceptedTransactions}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 transition-colors"
+                  >
+                    📥 Add Existing Accepted
                   </button>
                   <button
                     onClick={() => {/* TODO: Implement bulk sync */}}
