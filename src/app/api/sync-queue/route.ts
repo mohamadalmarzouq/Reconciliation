@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
         t.description,
         t.amount,
         t.type,
-        t.match
+        t.confidence,
+        t.suggested_action,
+        t.is_matched
       FROM sync_queue sq
       JOIN transactions t ON sq.transaction_id = t.id
       WHERE sq.status = $1
