@@ -61,30 +61,39 @@ export default function ReviewPage() {
         setTransactions(prev => prev.map(updateTransaction))
         setFilteredTransactions(prev => prev.map(updateTransaction))
 
-        // If transaction was accepted, add to sync queue for Xero/Zoho
+        // If transaction was accepted, add to sync queue for Xero/Zoho (only if it needs a new entry)
         if (actionType === 'accept') {
           const transaction = transactions.find(t => t.id === transactionId)
           if (transaction) {
-            try {
-              const syncResponse = await fetch('/api/sync-queue', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  transactionId,
-                  action: 'accept',
-                  provider: selectedProvider, // 'xero' or 'zoho'
-                  notes: `Approved for sync - ${transaction.isMatched ? 'Confirmed match' : transaction.match?.suggestedAction === 'flag' ? 'Accepted anomaly' : 'Create new entry'}`
+            // Only add to sync queue if it needs a new entry (not already matched in accounting software)
+            const needsNewEntry = !transaction.isMatched || 
+                                 (transaction.match?.confidence && transaction.match.confidence < 0.7) ||
+                                 transaction.match?.suggestedAction === 'flag'
+            
+            if (needsNewEntry) {
+              try {
+                const syncResponse = await fetch('/api/sync-queue', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    transactionId,
+                    action: 'accept',
+                    provider: selectedProvider, // 'xero' or 'zoho'
+                    notes: `Approved for sync - ${transaction.isMatched ? 'Confirmed match' : transaction.match?.suggestedAction === 'flag' ? 'Accepted anomaly' : 'Create new entry'}`
+                  })
                 })
-              })
-              
-              if (syncResponse.ok) {
-                console.log('Transaction added to sync queue')
+                
+                if (syncResponse.ok) {
+                  console.log('Transaction added to sync queue')
+                }
+              } catch (syncError) {
+                console.error('Error adding to sync queue:', syncError)
+                // Don't show error to user as the main action succeeded
               }
-            } catch (syncError) {
-              console.error('Error adding to sync queue:', syncError)
-              // Don't show error to user as the main action succeeded
+            } else {
+              console.log('Transaction already matched in accounting software - not added to sync queue')
             }
           }
         }

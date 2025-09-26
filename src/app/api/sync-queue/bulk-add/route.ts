@@ -14,13 +14,23 @@ export async function POST(request: NextRequest) {
     
     const pool = getDatabasePool()
     
-    // Get all accepted transactions for this bank statement
+    // Get accepted transactions that need new entries (not already matched in accounting software)
     const query = `
       SELECT id, date, description, amount, type, match
       FROM transactions 
       WHERE bank_statement_id = $1 
       AND status = 'accepted'
       AND id NOT IN (SELECT transaction_id FROM sync_queue WHERE transaction_id IS NOT NULL)
+      AND (
+        -- Low confidence transactions that need new entries
+        (match->>'confidence')::float < 0.7
+        OR 
+        -- Flagged transactions that need new entries
+        match->>'suggestedAction' = 'flag'
+        OR
+        -- Transactions without matches that need new entries
+        match IS NULL
+      )
     `
     
     const result = await pool.query(query, [bankStatementId])
