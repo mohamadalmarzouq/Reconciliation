@@ -615,7 +615,7 @@ export default function ReviewPage() {
     setIsSavingReport(true)
     try {
       const bankStatementId = sessionStorage.getItem('currentBankStatementId')
-      const reportType = selectedProviders.length === 2 ? 'multi_sync' : selectedProviders[0] === 'xero' ? 'xero_sync' : 'zoho_sync'
+      const reportType = selectedProviders.length === 2 ? 'ai_sync' : selectedProviders[0] === 'xero' ? 'xero_sync' : 'zoho_sync'
       const providerName = selectedProviders.length === 2 ? 'Xero & Zoho' : selectedProviders[0] === 'xero' ? 'Xero' : 'Zoho'
       
       const reportName = generateDefaultReportName(
