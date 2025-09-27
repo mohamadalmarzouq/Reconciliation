@@ -39,16 +39,16 @@ export async function POST(request: NextRequest) {
     }
     
     // Add each accepted transaction to sync queue
-    const insertPromises = result.rows.map(transaction => {
-      const insertQuery = `
+    const insertPromises = result.rows.map(async (transaction) => {
+      // Insert into sync_queue (without provider)
+      const queueQuery = `
         INSERT INTO sync_queue (
           transaction_id,
           action,
-          provider,
           notes,
           status,
           created_at
-        ) VALUES ($1, $2, $3, $4, 'pending', NOW())
+        ) VALUES ($1, $2, $3, 'pending', NOW())
         RETURNING id
       `
       
@@ -58,12 +58,33 @@ export async function POST(request: NextRequest) {
         ? 'Confirmed match - no new entry needed'
         : 'Create new entry in accounting software'
       
-      return pool.query(insertQuery, [
+      const queueResult = await pool.query(queueQuery, [
         transaction.id,
         'accept',
-        provider,
         notes
       ])
+      
+      const queueId = queueResult.rows[0].id
+      
+      // Create sync attempts for each provider
+      const providers = ['xero', 'zoho'] // Default to both providers
+      const attemptPromises = providers.map(provider => {
+        const attemptQuery = `
+          INSERT INTO sync_attempts (
+            sync_queue_id,
+            provider,
+            status,
+            created_at
+          ) VALUES ($1, $2, 'pending', NOW())
+          RETURNING id
+        `
+        
+        return pool.query(attemptQuery, [queueId, provider])
+      })
+      
+      await Promise.all(attemptPromises)
+      
+      return { queueId, transactionId: transaction.id }
     })
     
     const insertResults = await Promise.all(insertPromises)

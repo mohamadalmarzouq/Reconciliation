@@ -16,17 +16,31 @@ export async function POST(request: NextRequest) {
     
     const pool = getDatabasePool()
     
-    // Get the sync queue item with transaction details
+    // Get the sync queue item with transaction details and sync attempts
     const queueQuery = `
       SELECT 
         sq.*,
         t.date,
         t.description,
         t.amount,
-        t.type
+        t.type,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', sa.id,
+              'provider', sa.provider,
+              'status', sa.status,
+              'error_message', sa.error_message,
+              'external_id', sa.external_id
+            )
+          ) FILTER (WHERE sa.id IS NOT NULL), 
+          '[]'::json
+        ) as sync_attempts
       FROM sync_queue sq
       JOIN transactions t ON sq.transaction_id = t.id
+      LEFT JOIN sync_attempts sa ON sq.id = sa.sync_queue_id
       WHERE sq.id = $1 AND sq.status = 'pending'
+      GROUP BY sq.id, t.date, t.description, t.amount, t.type
     `
     
     const queueResult = await pool.query(queueQuery, [queueId])
@@ -46,58 +60,96 @@ export async function POST(request: NextRequest) {
       ['processing', queueId]
     )
     
-    let syncResult
+    // Process each sync attempt
+    const syncResults = []
+    let hasSuccess = false
+    let hasFailure = false
     
-    try {
-      if (queueItem.provider === 'xero') {
-        syncResult = await syncToXero(queueItem)
-      } else if (queueItem.provider === 'zoho') {
-        syncResult = await syncToZoho(queueItem)
-      } else {
-        throw new Error(`Unsupported provider: ${queueItem.provider}`)
+    for (const attempt of queueItem.sync_attempts) {
+      try {
+        // Update attempt status to processing
+        await pool.query(
+          'UPDATE sync_attempts SET status = $1, updated_at = NOW() WHERE id = $2',
+          ['processing', attempt.id]
+        )
+        
+        let syncResult
+        if (attempt.provider === 'xero') {
+          syncResult = await syncToXero(queueItem)
+        } else if (attempt.provider === 'zoho') {
+          syncResult = await syncToZoho(queueItem)
+        } else {
+          throw new Error(`Unsupported provider: ${attempt.provider}`)
+        }
+        
+        // Update attempt status to completed
+        await pool.query(
+          `UPDATE sync_attempts SET 
+           status = $1, 
+           external_id = $2, 
+           sync_response = $3,
+           completed_at = NOW(), 
+           updated_at = NOW() 
+           WHERE id = $4`,
+          ['completed', syncResult.externalId, JSON.stringify(syncResult), attempt.id]
+        )
+        
+        syncResults.push({
+          provider: attempt.provider,
+          status: 'completed',
+          externalId: syncResult.externalId,
+          result: syncResult
+        })
+        
+        hasSuccess = true
+        
+      } catch (syncError) {
+        console.error(`Sync error for ${attempt.provider}:`, syncError)
+        
+        // Update attempt status to failed
+        const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+        await pool.query(
+          `UPDATE sync_attempts SET 
+           status = $1, 
+           error_message = $2,
+           updated_at = NOW() 
+           WHERE id = $3`,
+          ['failed', errorMessage, attempt.id]
+        )
+        
+        syncResults.push({
+          provider: attempt.provider,
+          status: 'failed',
+          error: errorMessage
+        })
+        
+        hasFailure = true
       }
-      
-      // Update status to completed with external ID
-      await pool.query(
-        `UPDATE sync_queue SET 
-         status = $1, 
-         external_id = $2, 
-         sync_response = $3,
-         completed_at = NOW(), 
-         updated_at = NOW() 
-         WHERE id = $4`,
-        ['completed', syncResult.externalId, JSON.stringify(syncResult), queueId]
-      )
-      
-      // Update the transaction with accounting entry ID
-      await pool.query(
-        'UPDATE transactions SET accounting_entry_id = $1 WHERE id = $2',
-        [syncResult.externalId, queueItem.transaction_id]
-      )
-      
-      return NextResponse.json({
-        success: true,
-        message: `Successfully synced to ${queueItem.provider}`,
-        externalId: syncResult.externalId,
-        syncResult
-      })
-      
-    } catch (syncError) {
-      console.error('Sync error:', syncError)
-      
-      // Update status to failed with error details
-      const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
-      await pool.query(
-        `UPDATE sync_queue SET 
-         status = $1, 
-         error_message = $2,
-         updated_at = NOW() 
-         WHERE id = $3`,
-        ['failed', errorMessage, queueId]
-      )
-      
-      throw syncError
     }
+    
+    // Update overall queue status based on results
+    let overallStatus = 'completed'
+    if (hasFailure && !hasSuccess) {
+      overallStatus = 'failed'
+    } else if (hasFailure && hasSuccess) {
+      overallStatus = 'partial'
+    }
+    
+    await pool.query(
+      `UPDATE sync_queue SET 
+       status = $1, 
+       completed_at = NOW(), 
+       updated_at = NOW() 
+       WHERE id = $2`,
+      [overallStatus, queueId]
+    )
+    
+    return NextResponse.json({
+      success: true,
+      message: `Sync completed with status: ${overallStatus}`,
+      syncResults,
+      overallStatus
+    })
     
   } catch (error) {
     console.error('Error syncing queue item:', error)
