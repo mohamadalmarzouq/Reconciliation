@@ -150,7 +150,7 @@ export async function initializeDatabase() {
       action VARCHAR(20) NOT NULL CHECK (action IN ('accept', 'reject', 'flag')),
       account_code VARCHAR(50),
       notes TEXT,
-      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'partial')),
       error_message TEXT,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE,
@@ -205,6 +205,26 @@ export async function initializeDatabase() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_reports_generated_at ON reconciliation_reports(generated_at)
   `)
+
+  // Add missing columns to existing tables if they don't exist
+  try {
+    await pool.query(`
+      ALTER TABLE bank_statements 
+      ADD COLUMN IF NOT EXISTS account_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS upload_session_id VARCHAR(100)
+    `)
+  } catch (error) {
+    console.log('Bank statements columns already exist or error adding them:', error)
+  }
+
+  try {
+    await pool.query(`
+      ALTER TABLE sync_queue 
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'partial'))
+    `)
+  } catch (error) {
+    console.log('Sync queue status column already exists or error adding it:', error)
+  }
   
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_reports_type ON reconciliation_reports(report_type)
