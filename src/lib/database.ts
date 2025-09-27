@@ -30,7 +30,9 @@ export async function initializeDatabase() {
         unmatched_transactions INTEGER DEFAULT 0,
         confidence_score DECIMAL(3,2) DEFAULT 0.00,
         bank_name VARCHAR(100),
-        account_number VARCHAR(50)
+        account_number VARCHAR(50),
+        account_name VARCHAR(100), -- User-friendly name for the account
+        upload_session_id VARCHAR(100) -- Groups multiple statements uploaded together
       )
     `)
 
@@ -146,9 +148,21 @@ export async function initializeDatabase() {
       id SERIAL PRIMARY KEY,
       transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
       action VARCHAR(20) NOT NULL CHECK (action IN ('accept', 'reject', 'flag')),
-      provider VARCHAR(20) CHECK (provider IN ('xero', 'zoho')),
       account_code VARCHAR(50),
       notes TEXT,
+      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+      error_message TEXT,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE,
+      completed_at TIMESTAMP WITH TIME ZONE
+    )
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_attempts (
+      id SERIAL PRIMARY KEY,
+      sync_queue_id INTEGER REFERENCES sync_queue(id) ON DELETE CASCADE,
+      provider VARCHAR(20) NOT NULL CHECK (provider IN ('xero', 'zoho')),
       status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
       error_message TEXT,
       external_id VARCHAR(100), -- ID from Xero/Zoho after successful sync
@@ -170,6 +184,22 @@ export async function initializeDatabase() {
   
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_sync_queue_transaction ON sync_queue(transaction_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_attempts_queue ON sync_attempts(sync_queue_id)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_attempts_provider ON sync_attempts(provider)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_sync_attempts_status ON sync_attempts(status)
+  `)
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_bank_statements_session ON bank_statements(upload_session_id)
   `)
   
   await pool.query(`
