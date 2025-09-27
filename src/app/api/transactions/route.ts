@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const pool = getDatabasePool()
     
     let query = `
-      SELECT 
+      SELECT DISTINCT
         t.*,
         ae.entry_id as accounting_entry_id,
         ae.description as accounting_description,

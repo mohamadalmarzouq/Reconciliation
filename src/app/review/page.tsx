@@ -706,114 +706,98 @@ export default function ReviewPage() {
             {/* Multi-Provider Sync Selector */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Sync to:</label>
-              <div className="flex gap-2">
-                <label className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedProviders.includes('xero')}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedProviders(prev => [...prev, 'xero'])
-                      } else {
-                        setSelectedProviders(prev => prev.filter(p => p !== 'xero'))
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span>🟢 Xero</span>
-                </label>
-                <label className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedProviders.includes('zoho')}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedProviders(prev => [...prev, 'zoho'])
-                      } else {
-                        setSelectedProviders(prev => prev.filter(p => p !== 'zoho'))
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span>🔵 Zoho</span>
-                </label>
-              </div>
+              <select
+                value={selectedProviders.length === 2 ? 'both' : selectedProviders[0] || 'xero'}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === 'both') {
+                    setSelectedProviders(['xero', 'zoho'])
+                  } else {
+                    setSelectedProviders([value])
+                  }
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="xero">🟢 Xero Only</option>
+                <option value="zoho">🔵 Zoho Only</option>
+                <option value="both">🟢🔵 Both Xero & Zoho</option>
+              </select>
             </div>
 
-            {/* Dynamic Connection Buttons */}
-            {selectedProvider === 'xero' ? (
-              <>
-                {!xeroConnected ? (
-                  <button 
-                    onClick={connectToXero}
-                    disabled={isConnecting}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isConnecting 
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                    }`}
-                  >
-                    {isConnecting ? '🔄 Connecting...' : '🔗 Connect Xero'}
-                  </button>
-                ) : (
-                  <button 
-                    onClick={fetchXeroData}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  >
-                    📊 Fetch Xero Data
-                  </button>
-                )}
-                {xeroConnected && (
-                  <button 
-                    onClick={() => runReconciliation('xero')}
-                    disabled={isReconciling}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isReconciling 
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
-                  </button>
-                )}
-              </>
-            ) : (
-              <>
-                {!zohoConnected ? (
-                  <button 
-                    onClick={connectToZoho}
-                    disabled={isConnecting}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isConnecting 
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {isConnecting ? '🔄 Connecting...' : '🔗 Connect Zoho'}
-                  </button>
-                ) : (
-                  <button 
-                    onClick={fetchZohoData}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    📊 Fetch Zoho Data
-                  </button>
-                )}
-                {zohoConnected && (
-                  <button 
-                    onClick={() => runReconciliation('zoho')}
-                    disabled={isReconciling}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isReconciling 
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
-                  </button>
-                )}
-              </>
-            )}
+            {/* Connection Buttons for Selected Providers */}
+            <div className="flex gap-2">
+              {selectedProviders.includes('xero') && (
+                <>
+                  {!xeroConnected ? (
+                    <button 
+                      onClick={connectToXero}
+                      disabled={isConnecting}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        isConnecting 
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      {isConnecting ? '🔄 Connecting...' : '🔗 Connect Xero'}
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={fetchXeroData}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                    >
+                      📊 Fetch Xero Data
+                    </button>
+                  )}
+                </>
+              )}
+              
+              {selectedProviders.includes('zoho') && (
+                <>
+                  {!zohoConnected ? (
+                    <button 
+                      onClick={connectToZoho}
+                      disabled={isConnecting}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        isConnecting 
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {isConnecting ? '🔄 Connecting...' : '🔗 Connect Zoho'}
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={fetchZohoData}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      📊 Fetch Zoho Data
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Reconcile Button - Show when at least one provider is connected */}
+            {(xeroConnected && selectedProviders.includes('xero')) || (zohoConnected && selectedProviders.includes('zoho')) ? (
+              <button 
+                onClick={() => {
+                  if (selectedProviders.includes('xero') && xeroConnected) {
+                    runReconciliation('xero')
+                  }
+                  if (selectedProviders.includes('zoho') && zohoConnected) {
+                    runReconciliation('zoho')
+                  }
+                }}
+                disabled={isReconciling}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  isReconciling 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                }`}
+              >
+                {isReconciling ? '🔄 Reconciling...' : '⚡ Reconcile Now'}
+              </button>
+            ) : null}
           </div>
         </div>
 
