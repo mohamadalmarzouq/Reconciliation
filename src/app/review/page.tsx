@@ -12,6 +12,7 @@ export default function ReviewPage() {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isReconciling, setIsReconciling] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<'xero' | 'zoho'>('xero')
+  const [selectedProviders, setSelectedProviders] = useState<string[]>(['xero', 'zoho']) // Default to both
   const [xeroConnected, setXeroConnected] = useState(false)
   const [zohoConnected, setZohoConnected] = useState(false)
   const [xeroData, setXeroData] = useState<any>(null)
@@ -79,7 +80,7 @@ export default function ReviewPage() {
                   body: JSON.stringify({
                     transactionId,
                     action: 'accept',
-                    provider: selectedProvider, // 'xero' or 'zoho'
+                    providers: selectedProviders, // Array of providers to sync to
                     notes: `Approved for sync - ${transaction.isMatched ? 'Confirmed match' : transaction.match?.suggestedAction === 'flag' ? 'Accepted anomaly' : 'Create new entry'}`
                   })
                 })
@@ -700,6 +701,43 @@ export default function ReviewPage() {
                 <option value="xero">🟢 Xero</option>
                 <option value="zoho">🔵 Zoho Books</option>
               </select>
+            </div>
+
+            {/* Multi-Provider Sync Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Sync to:</label>
+              <div className="flex gap-2">
+                <label className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedProviders.includes('xero')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedProviders(prev => [...prev, 'xero'])
+                      } else {
+                        setSelectedProviders(prev => prev.filter(p => p !== 'xero'))
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span>🟢 Xero</span>
+                </label>
+                <label className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedProviders.includes('zoho')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedProviders(prev => [...prev, 'zoho'])
+                      } else {
+                        setSelectedProviders(prev => prev.filter(p => p !== 'zoho'))
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span>🔵 Zoho</span>
+                </label>
+              </div>
             </div>
 
             {/* Dynamic Connection Buttons */}
