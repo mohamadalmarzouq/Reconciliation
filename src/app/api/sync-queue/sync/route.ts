@@ -86,13 +86,14 @@ export async function POST(request: NextRequest) {
       console.error('Sync error:', syncError)
       
       // Update status to failed with error details
+      const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
       await pool.query(
         `UPDATE sync_queue SET 
          status = $1, 
          error_message = $2,
          updated_at = NOW() 
          WHERE id = $3`,
-        ['failed', syncError.message, queueId]
+        ['failed', errorMessage, queueId]
       )
       
       throw syncError
