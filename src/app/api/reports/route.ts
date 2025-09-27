@@ -42,9 +42,20 @@ export async function GET(request: NextRequest) {
     let paramCount = 0
     
     if (type) {
-      paramCount++
-      query += ` AND report_type = $${paramCount}`
-      params.push(type)
+      // Handle multiple types separated by commas
+      const types = type.split(',').map(t => t.trim())
+      if (types.length === 1) {
+        paramCount++
+        query += ` AND report_type = $${paramCount}`
+        params.push(types[0])
+      } else {
+        const placeholders = types.map(() => {
+          paramCount++
+          return `$${paramCount}`
+        }).join(', ')
+        query += ` AND report_type IN (${placeholders})`
+        params.push(...types)
+      }
     }
     
     if (favorite) {
