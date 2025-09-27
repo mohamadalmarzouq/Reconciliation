@@ -460,9 +460,10 @@ export default function ReviewPage() {
   }
 
   const connectToProvider = () => {
-    if (selectedProvider === 'xero') {
+    if (selectedProviders.includes('xero')) {
       connectToXero()
-    } else {
+    }
+    if (selectedProviders.includes('zoho')) {
       connectToZoho()
     }
   }
@@ -552,7 +553,7 @@ export default function ReviewPage() {
     }
   }
 
-  const runReconciliation = async (provider: 'xero' | 'zoho' = selectedProvider) => {
+  const runReconciliation = async (provider: 'xero' | 'zoho' = 'xero') => {
     const providerData = provider === 'xero' ? xeroData : zohoData
     const providerName = provider === 'xero' ? 'Xero' : 'Zoho'
     
