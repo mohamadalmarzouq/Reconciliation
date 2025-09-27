@@ -81,6 +81,80 @@ export default function ReportsPage() {
     }
   }
 
+  const syncQueueItem = async (queueId: number) => {
+    try {
+      const response = await fetch('/api/sync-queue/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ queueId })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        alert(`Successfully synced to ${result.syncResult?.provider}!`)
+        // Refresh the pending entries to update the status
+        fetchPendingEntries()
+      } else {
+        alert(`Sync failed: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error syncing queue item:', error)
+      alert('Error syncing item. Please try again.')
+    }
+  }
+
+  const syncAllPendingItems = async () => {
+    const pendingItems = pendingEntries.filter(entry => entry.status === 'pending')
+    
+    if (pendingItems.length === 0) {
+      alert('No pending items to sync.')
+      return
+    }
+    
+    if (!confirm(`Are you sure you want to sync all ${pendingItems.length} pending items?`)) {
+      return
+    }
+    
+    setPendingLoading(true)
+    
+    let successCount = 0
+    let failCount = 0
+    
+    // Sync items one by one to avoid overwhelming the API
+    for (const item of pendingItems) {
+      try {
+        const response = await fetch('/api/sync-queue/sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ queueId: item.id })
+        })
+        
+        const result = await response.json()
+        
+        if (result.success) {
+          successCount++
+        } else {
+          failCount++
+          console.error(`Failed to sync item ${item.id}:`, result.error)
+        }
+      } catch (error) {
+        failCount++
+        console.error(`Error syncing item ${item.id}:`, error)
+      }
+    }
+    
+    // Refresh the list to show updated statuses
+    await fetchPendingEntries()
+    setPendingLoading(false)
+    
+    alert(`Sync completed: ${successCount} successful, ${failCount} failed`)
+  }
+
   const addExistingAcceptedTransactions = async () => {
     setPendingLoading(true)
     try {
@@ -333,8 +407,9 @@ export default function ReportsPage() {
                     📥 Add Existing Accepted
                   </button>
                   <button
-                    onClick={() => {/* TODO: Implement bulk sync */}}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-colors"
+                    onClick={syncAllPendingItems}
+                    disabled={pendingEntries.filter(e => e.status === 'pending').length === 0}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     ⚡ Sync All
                   </button>
@@ -374,6 +449,17 @@ export default function ReportsPage() {
                             <span className="text-xs text-gray-500">
                               {entry.provider ? `→ ${entry.provider.toUpperCase()}` : 'No provider'}
                             </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              entry.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              entry.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                              entry.status === 'completed' ? 'bg-green-100 text-green-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {entry.status === 'pending' && '⏳ Pending'}
+                              {entry.status === 'processing' && '🔄 Processing'}
+                              {entry.status === 'completed' && '✅ Synced'}
+                              {entry.status === 'failed' && '❌ Failed'}
+                            </span>
                           </div>
                           <div className="text-sm text-gray-600">
                             <span className="font-medium">${Math.abs(entry.amount).toFixed(2)}</span>
@@ -389,10 +475,22 @@ export default function ReportsPage() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => {/* TODO: Implement individual sync */}}
-                            className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                            onClick={() => syncQueueItem(entry.id)}
+                            disabled={entry.status !== 'pending'}
+                            className={`px-3 py-1 rounded text-sm transition-colors ${
+                              entry.status === 'pending'
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : entry.status === 'completed'
+                                ? 'bg-gray-400 text-white cursor-not-allowed'
+                                : entry.status === 'processing'
+                                ? 'bg-blue-500 text-white cursor-not-allowed'
+                                : 'bg-red-400 text-white cursor-not-allowed'
+                            }`}
                           >
-                            Sync Now
+                            {entry.status === 'pending' && 'Sync Now'}
+                            {entry.status === 'processing' && 'Syncing...'}
+                            {entry.status === 'completed' && '✓ Synced'}
+                            {entry.status === 'failed' && '✗ Failed'}
                           </button>
                           <button
                             onClick={() => {/* TODO: Implement edit */}}

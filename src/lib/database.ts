@@ -149,11 +149,13 @@ export async function initializeDatabase() {
       provider VARCHAR(20) CHECK (provider IN ('xero', 'zoho')),
       account_code VARCHAR(50),
       notes TEXT,
-      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'syncing', 'synced', 'failed')),
+      status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
       error_message TEXT,
+      external_id VARCHAR(100), -- ID from Xero/Zoho after successful sync
+      sync_response JSONB, -- Full response from the accounting software
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE,
-      synced_at TIMESTAMP WITH TIME ZONE
+      completed_at TIMESTAMP WITH TIME ZONE
     )
   `)
 
