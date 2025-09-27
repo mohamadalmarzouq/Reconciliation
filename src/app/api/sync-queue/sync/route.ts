@@ -101,8 +101,9 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('Error syncing queue item:', error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { error: 'Failed to sync queue item: ' + error.message },
+      { error: 'Failed to sync queue item: ' + errorMessage },
       { status: 500 }
     )
   }
