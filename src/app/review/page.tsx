@@ -11,7 +11,6 @@ export default function ReviewPage() {
   const [isMatching, setIsMatching] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isReconciling, setIsReconciling] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<'xero' | 'zoho'>('xero')
   const [selectedProviders, setSelectedProviders] = useState<string[]>(['xero', 'zoho']) // Default to both
   const [xeroConnected, setXeroConnected] = useState(false)
   const [zohoConnected, setZohoConnected] = useState(false)
@@ -203,13 +202,11 @@ export default function ReviewPage() {
     if (success === 'xero_connected') {
       alert('✅ Xero connected successfully! You can now fetch your Xero data.')
       setXeroConnected(true)
-      setSelectedProvider('xero')
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname)
     } else if (success === 'zoho_connected') {
       alert('✅ Zoho Books connected successfully! You can now fetch your Zoho data.')
       setZohoConnected(true)
-      setSelectedProvider('zoho')
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname)
     }
@@ -617,18 +614,21 @@ export default function ReviewPage() {
     setIsSavingReport(true)
     try {
       const bankStatementId = sessionStorage.getItem('currentBankStatementId')
+      const reportType = selectedProviders.length === 2 ? 'multi_sync' : selectedProviders[0] === 'xero' ? 'xero_sync' : 'zoho_sync'
+      const providerName = selectedProviders.length === 2 ? 'Xero & Zoho' : selectedProviders[0] === 'xero' ? 'Xero' : 'Zoho'
+      
       const reportName = generateDefaultReportName(
-        selectedProvider === 'xero' ? 'xero_sync' : 'zoho_sync',
+        reportType,
         'Bank Statement', // TODO: Get actual bank name
         new Date().toISOString().split('T')[0]
       )
 
       const result = await saveReconciliationReport({
         reportName,
-        reportType: selectedProvider === 'xero' ? 'xero_sync' : 'zoho_sync',
+        reportType,
         transactions: filteredTransactions,
         bankStatementId: bankStatementId || undefined,
-        provider: selectedProvider === 'xero' ? 'Xero' : 'Zoho',
+        provider: providerName,
         bankName: 'Bank Statement', // TODO: Get actual bank name
         processingTime: 0, // TODO: Calculate actual processing time
         filters: {
@@ -690,19 +690,6 @@ export default function ReviewPage() {
             >
               {isMatching ? '🔄 Processing...' : '🧠 AI Analysis'}
             </button>
-            {/* Provider Selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Provider:</label>
-              <select
-                value={selectedProvider}
-                onChange={(e) => setSelectedProvider(e.target.value as 'xero' | 'zoho')}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="xero">🟢 Xero</option>
-                <option value="zoho">🔵 Zoho Books</option>
-              </select>
-            </div>
-
             {/* Multi-Provider Sync Selector */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Sync to:</label>
